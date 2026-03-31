@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Hoodieboy Timer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Cubing.js and Twisty Player from CDN -->
+    <script type="importmap">
+        {
+            "imports": {
+                "cubing/scramble": "https://cdn.cubing.net/v0/js/cubing/scramble",
+                "cubing/twisty": "https://cdn.cubing.net/v0/js/cubing/twisty"
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&family=Orbitron:wght@900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Roboto Mono', monospace; color: white; text-shadow: 0 0 8px rgba(0,255,255,0.7); background-color: #0c0a15; overflow: hidden; }
+        #bg-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; }
+        .panel { background: rgba(17,24,39,0.75); border: 1px solid rgba(255,255,255,0.1); border-radius: 1rem; }
+
+        /* Timer states */
+        .timer-inspecting { color: #67E8F9; text-shadow: 0 0 15px #67E8F9; }
+        .timer-ready      { color: #34D399; text-shadow: 0 0 15px #34D399; }
+        .timer-running    { color: #F87171; text-shadow: 0 0 20px #F87171; }
+        .timer-penalty    { color: #FBBF24; text-shadow: 0 0 15px #FBBF24; }
+        .timer-display    { font-family: 'Orbitron', sans-serif; font-size: clamp(2.5rem,12vw,8rem); transition: color .3s, text-shadow .3s; }
+
+        /* Animations */
+        .inspection-tick { animation: ipulse .5s ease-in-out; }
+        @keyframes ipulse { 0%{transform:scale(1)} 50%{transform:scale(1.15)} 100%{transform:scale(1)} }
+
+        @keyframes new-best-celebrate {
+            0%  { transform:scale(1);    color:white;   text-shadow:none; }
+            25% { transform:scale(1.15); color:#fde047; text-shadow:0 0 10px #fde047,0 0 30px #f59e0b; }
+            50% { transform:scale(1.05); color:#bef264; text-shadow:0 0 10px #bef264,0 0 30px #84cc16; }
+            75% { transform:scale(1.15); color:#67E8F9; text-shadow:0 0 10px #67E8F9,0 0 30px #06b6d4; }
+            100%{ transform:scale(1);    color:white;   text-shadow:none; }
+        }
+        .new-best-animation { animation: new-best-celebrate 2.5s ease-in-out; }
+
+        @keyframes new-worst-drop {
+            0%  { transform:translateY(-80px) scaleY(1.2); opacity:0; }
+            20% { transform:translateY(0) scaleY(1);       opacity:1; }
+            40% { transform:translateY(-20px) scaleY(1.05); }
+            60% { transform:translateY(0) scaleY(1); }
+            100%{ transform:translateY(0) scaleY(1); }
+        }
+        .new-worst-animation { animation: new-worst-drop 1.2s cubic-bezier(.5,0,.5,1.5); color:#F87171; text-shadow:0 0 15px #F87171; }
+
+        .scramble-text { font-size: clamp(.9rem,2.5vw,1.4rem); transition: opacity .5s, transform .5s; min-height: 40px; line-height: 1.6; }
+        .history-table tr:hover { background: rgba(255,255,255,.05); }
+        .custom-select { background: rgba(31,41,55,.7); color: #d1d5db; border: 1px solid rgba(255,255,255,.2); }
+        .status-dnf   { color: #f87171; font-weight: bold; }
+        .status-plus2 { color: #fbbf24; }
+
+        /* Scramble visualizer - twisty-player styling */
+        #puzzle-visualization {
+            margin: .75rem auto 0;
+            opacity: 0;
+            transition: opacity .5s ease .1s;
+            display: flex;
+            justify-content: center;
+            min-height: 280px;
+            align-items: center;
+        }
+        #puzzle-visualization.show { opacity: 1; }
+        twisty-player {
+            width: 100%;
+            max-width: 400px;
+            height: auto;
+            min-height: 280px;
+            --background: transparent;
+        }
+
+        /* Focus / Layout transitions */
+        #left-column, #stats-panel, #contact-me-box { transition: opacity .4s, transform .4s; }
+        #timer-container { transition: all .5s; }
+        body.focus-mode #left-column    { opacity:0; transform:translateX(-100%); pointer-events:none; }
+        body.focus-mode #stats-panel    { opacity:0; transform:scale(.9);         pointer-events:none; }
+        body.focus-mode #contact-me-box { opacity:0; transform:translateY(100%);  pointer-events:none; }
+        body.focus-mode #timer-container {
+            position:fixed; top:0; left:0; width:100vw; height:100vh;
+            z-index:100; margin:0; padding:0; flex-grow:1;
+            background:rgba(12,10,21,.25);
+        }
+        body.focus-mode #timer { font-size: clamp(5rem,25vw,18rem); }
+        #contact-me-box.visible { opacity:1; transform:translate(-50%,0); }
+
+        /* ── SETTINGS MODAL ── */
+        #settings-modal {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,.75);
+            display: flex; align-items: center; justify-content: center;
+            padding: 1rem;
+            z-index: 200;
+            opacity: 0; pointer-events: none;
+            transition: opacity .3s;
+        }
+        #settings-modal.open { opacity: 1; pointer-events: all; }
+        #settings-modal .modal-box {
+            background: rgba(15,20,35,.95);
+            border: 1px solid rgba(103,232,249,.25);
+            border-radius: 1.25rem;
+            padding: 2rem;
+            width: 100%; max-width: 420px;
+            box-shadow: 0 0 40px rgba(103,232,249,.15);
+            transform: scale(.94);
+            transition: transform .3s;
+        }
+        #settings-modal.open .modal-box { transform: scale(1); }
+
+        .toggle-track {
+            width: 44px; height: 24px;
+            background: rgba(255,255,255,.15);
+            border-radius: 12px;
+            position: relative;
+            cursor: pointer;
+            transition: background .25s;
+            flex-shrink: 0;
+            border: 1px solid rgba(255,255,255,.2);
+        }
+        .toggle-track.on { background: rgba(52,211,153,.5); border-color: #34D399; }
+        .toggle-knob {
+            position: absolute; top: 2px; left: 2px;
+            width: 18px; height: 18px;
+            background: white; border-radius: 50%;
+            transition: left .25s;
+            box-shadow: 0 1px 4px rgba(0,0,0,.4);
+        }
+        .toggle-track.on .toggle-knob { left: 22px; }
+
+        /* Settings button */
+        #settings-btn {
+            position: fixed; top: 1rem; right: 1rem;
+            z-index: 150;
+            width: 38px; height: 38px;
+            background: rgba(17,24,39,.8);
+            border: 1px solid rgba(255,255,255,.15);
+            border-radius: .6rem;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer;
+            transition: border-color .2s, box-shadow .2s;
+        }
+        #settings-btn:hover { border-color: rgba(103,232,249,.6); box-shadow: 0 0 10px rgba(103,232,249,.2); }
+
+        /* Manual entry modal */
+        #manual-modal {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,.75);
+            display: flex; align-items: center; justify-content: center;
+            padding: 1rem;
+            z-index: 210;
+            opacity: 0; pointer-events: none;
+            transition: opacity .3s;
+        }
+        #manual-modal.open { opacity: 1; pointer-events: all; }
+        #manual-modal .modal-box {
+            background: rgba(15,20,35,.95);
+            border: 1px solid rgba(103,232,249,.25);
+            border-radius: 1.25rem;
+            padding: 2rem;
+            width: 100%; max-width: 360px;
+            box-shadow: 0 0 40px rgba(103,232,249,.15);
+            transform: scale(.94);
+            transition: transform .3s;
+        }
+        #manual-modal.open .modal-box { transform: scale(1); }
+
+        #manual-input {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 900;
+            text-align: center;
+            width: 100%;
+            background: transparent;
+            border: none;
+            border-bottom: 2px solid rgba(103,232,249,.5);
+            color: #67E8F9;
+            text-shadow: 0 0 10px #67E8F9;
+            outline: none;
+            letter-spacing: 0.05em;
+            padding: .25rem 0;
+        }
+        #manual-preview {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.1rem;
+            text-align: center;
+            color: rgba(255,255,255,.5);
+            margin-top: .5rem;
+            min-height: 1.5rem;
+        }
+        #manual-input::-webkit-inner-spin-button,
+        #manual-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+
+        .settings-row {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: .75rem 0;
+            border-bottom: 1px solid rgba(255,255,255,.07);
+        }
+        .settings-row:last-child { border-bottom: none; }
+        .settings-label { font-size: .9rem; color: #d1d5db; }
+        .settings-desc  { font-size: .72rem; color: rgba(255,255,255,.35); margin-top:.15rem; }
+    </style>
+</head>
+<body>
+<canvas id="bg-canvas"></canvas>
+
+<!-- Settings Button (gear icon) -->
+<button id="settings-btn" title="Settings">
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="rgba(103,232,249,0.85)" viewBox="0 0 16 16">
+        <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z"/>
+        <path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319zm-2.633.283c.246-.835 1.428-.835 1.674 0l.094.319a1.873 1.873 0 0 0 2.693 1.115l.291-.16c.764-.415 1.6.42 1.184 1.185l-.159.292a1.873 1.873 0 0 0 1.116 2.692l.318.094c.835.246.835 1.428 0 1.674l-.319.094a1.873 1.873 0 0 0-1.115 2.693l.16.291c.415.764-.42 1.6-1.185 1.184l-.291-.159a1.873 1.873 0 0 0-2.693 1.116l-.094.318c-.246.835-1.428.835-1.674 0l-.094-.319a1.873 1.873 0 0 0-2.692-1.115l-.292.16c-.764.415-1.6-.42-1.184-1.185l.159-.291A1.873 1.873 0 0 0 1.945 8.93l-.319-.094c-.835-.246-.835-1.428 0-1.674l.319-.094A1.873 1.873 0 0 0 3.06 4.377l-.16-.292c-.415-.764.42-1.6 1.185-1.184l.292.159a1.873 1.873 0 0 0 2.692-1.115l.094-.319z"/>
+    </svg>
+</button>
+
+<!-- Settings Modal -->
+<div id="settings-modal">
+    <div class="modal-box">
+        <h2 class="text-xl font-bold text-cyan-300 mb-5 text-center" style="font-family:'Orbitron',sans-serif;letter-spacing:.05em;">⚙ Settings</h2>
+
+        <div class="settings-row">
+            <div>
+                <div class="settings-label">Inspection Time</div>
+                <div class="settings-desc">15-second WCA inspection before solve</div>
+            </div>
+            <div id="toggle-inspection" class="toggle-track on"><div class="toggle-knob"></div></div>
+        </div>
+
+        <div class="settings-row" style="padding-top:1rem;">
+            <div>
+                <div class="settings-label">Manual Time Entry</div>
+                <div class="settings-desc">Add a time without running the timer</div>
+            </div>
+            <button id="open-manual-btn"
+                class="text-xs font-bold py-2 px-4 rounded-lg"
+                style="background:rgba(103,232,249,.15);border:1px solid rgba(103,232,249,.4);color:#67E8F9;cursor:pointer;transition:background .2s;"
+                onmouseover="this.style.background='rgba(103,232,249,.28)'"
+                onmouseout="this.style.background='rgba(103,232,249,.15)'">
+                Enter Time
+            </button>
+        </div>
+
+        <button id="close-settings-btn"
+            class="w-full mt-6 py-2 rounded-lg font-bold text-sm"
+            style="background:rgba(103,232,249,.18);border:1px solid rgba(103,232,249,.35);color:#67E8F9;cursor:pointer;transition:background .2s;"
+            onmouseover="this.style.background='rgba(103,232,249,.3)'"
+            onmouseout="this.style.background='rgba(103,232,249,.18)'">
+            Close
+        </button>
+    </div>
+</div>
+
+<!-- Manual Time Entry Modal -->
+<div id="manual-modal">
+    <div class="modal-box">
+        <h2 class="text-lg font-bold text-cyan-300 mb-1 text-center" style="font-family:'Orbitron',sans-serif;">Manual Entry</h2>
+        <p class="text-center text-xs mb-4" style="color:rgba(255,255,255,.4);">Type digits — last 2 are centiseconds<br><span style="color:rgba(103,232,249,.6);">456 → 4.56 &nbsp;|&nbsp; 1234 → 12.34 &nbsp;|&nbsp; 10023 → 1:00.23</span></p>
+
+        <input id="manual-input" type="text" inputmode="numeric" maxlength="7" placeholder="0" autocomplete="off" />
+        <div id="manual-preview">—</div>
+
+        <div class="flex gap-3 mt-6">
+            <button id="manual-cancel-btn"
+                class="flex-1 py-2 rounded-lg font-bold text-sm"
+                style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:#9ca3af;cursor:pointer;">
+                Cancel
+            </button>
+            <button id="manual-confirm-btn"
+                class="flex-1 py-2 rounded-lg font-bold text-sm"
+                style="background:rgba(52,211,153,.2);border:1px solid rgba(52,211,153,.5);color:#34D399;cursor:pointer;transition:background .2s;"
+                onmouseover="this.style.background='rgba(52,211,153,.35)'"
+                onmouseout="this.style.background='rgba(52,211,153,.2)'">
+                Add Time ✓
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="relative w-full h-screen flex flex-col md:flex-row p-2 sm:p-4 gap-4 z-10">
+
+    <!-- LEFT COLUMN -->
+    <div id="left-column" class="w-full md:w-1/2 lg:w-1/3 flex flex-col gap-4">
+
+        <!-- Scramble Panel -->
+        <div id="scramble-panel" class="panel p-4 shadow-lg">
+            <div class="flex justify-center items-center mb-2 gap-4">
+                <h2 class="text-center text-lg sm:text-xl text-cyan-300">Event</h2>
+                <select id="event-selector" class="custom-select rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-cyan-400"></select>
+            </div>
+            <p id="scramble" class="scramble-text text-center font-bold">Generating scramble…</p>
+            <div id="puzzle-visualization"></div>
+        </div>
+
+        <!-- History Panel -->
+        <div id="history-panel" class="panel p-4 shadow-lg flex-1 flex flex-col min-h-0">
+            <h2 class="text-center text-lg sm:text-xl text-cyan-300 mb-2 flex-shrink-0">History</h2>
+            <div id="history-scroll-container" class="overflow-y-auto flex-grow">
+                <table class="w-full text-center text-sm sm:text-base history-table">
+                    <thead class="sticky top-0 bg-gray-800/80 backdrop-blur-sm">
+                        <tr>
+                            <th class="p-2">#</th>
+                            <th class="p-2">Time</th>
+                            <th class="p-2">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div id="right-column" class="w-full md:w-1/2 lg:w-2/3 flex flex-col gap-4">
+
+        <div id="timer-container" class="panel flex-1 flex items-center justify-center">
+            <h1 id="timer" class="timer-display font-black tracking-tighter">0.00</h1>
+        </div>
+
+        <div id="stats-panel" class="panel p-4 shadow-lg flex flex-col sm:flex-row justify-around items-center">
+            <div class="text-center">
+                <h2 class="text-lg sm:text-xl text-cyan-300 mb-2">Stats</h2>
+                <div class="grid grid-cols-2 gap-x-4">
+                    <p>Ao5:  <span id="ao5"   class="font-bold">N/A</span></p>
+                    <p>Ao12: <span id="ao12"  class="font-bold">N/A</span></p>
+                    <p>Best: <span id="best"  class="font-bold">N/A</span></p>
+                    <p>Worst:<span id="worst" class="font-bold">N/A</span></p>
+                </div>
+            </div>
+            <div class="text-center mt-4 sm:mt-0">
+                <h2 class="text-lg sm:text-xl text-cyan-300 mb-2">Data</h2>
+                <div class="flex justify-center gap-2">
+                    <button id="import-btn"     class="text-sm bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 rounded">Import</button>
+                    <button id="export-csv-btn" class="text-sm bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-3 rounded">Export CSV</button>
+                    <button id="export-txt-btn" class="text-sm bg-cyan-800 hover:bg-cyan-900 text-white font-bold py-2 px-3 rounded">Export TXT</button>
+                </div>
+                <input type="file" id="import-file-input" class="hidden" accept=".csv,.txt">
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Info Modal -->
+<div id="info-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 transition-opacity duration-300 opacity-0 pointer-events-none">
+    <div class="panel max-w-lg w-full p-6 rounded-2xl text-center transform scale-95 transition-transform duration-300">
+        <h2 class="text-2xl font-bold text-cyan-300 mb-4">How to Use</h2>
+        <p class="mb-2">1. Press <strong class="text-cyan-300">spacebar</strong> or <strong class="text-cyan-300">tap the timer</strong> to start 15s inspection.</p>
+        <p class="mb-2">2. To start the solve, <strong class="text-cyan-300">PRESS and HOLD</strong> the spacebar or timer.</p>
+        <p class="mb-2">3. The timer turns <strong class="text-green-400">GREEN</strong> after 0.55s — <strong class="text-cyan-300">RELEASE</strong> to start.</p>
+        <p class="mb-2">4. Press <strong class="text-cyan-300">ANY KEY</strong> or <strong class="text-cyan-300">TAP</strong> to stop.</p>
+        <p class="mb-2">5. Press <strong class="text-cyan-300">ESC</strong> during inspection to cancel.</p>
+        <button id="close-modal" class="bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-2 px-6 rounded-lg transition-all duration-300 shadow-lg hover:shadow-cyan-500/50 mt-2">Got it!</button>
+    </div>
+</div>
+
+<!-- Contact -->
+<div id="contact-me-box" class="fixed bottom-4 left-1/2 transform -translate-x-1/2 opacity-0 translate-y-full transition-all duration-300 z-20">
+    <div class="panel p-3">
+        <div class="flex items-center gap-4">
+            <a href="https://www.instagram.com/thehoodiecuber/" target="_blank" rel="noopener noreferrer" title="Instagram" class="flex items-center gap-2 text-gray-300 hover:text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M8 0C5.829 0 5.556.01 4.703.048 3.85.088 3.269.222 2.76.42a3.9 3.9 0 0 0-1.417.923A3.9 3.9 0 0 0 .42 2.76C.222 3.268.087 3.85.048 4.703.01 5.555 0 5.827 0 8.001c0 2.172.01 2.444.048 3.297.04.852.174 1.433.372 1.942.205.526.478.972.923 1.417.444.445.89.719 1.416.923.51.198 1.09.333 1.942.372C5.555 15.99 5.827 16 8 16s2.444-.01 3.298-.048c.851-.04 1.434-.174 1.943-.372a3.9 3.9 0 0 0 1.416-.923c.445-.445.718-.891.923-1.417.197-.509.332-1.09.372-1.942C15.99 10.445 16 10.173 16 8s-.01-2.445-.048-3.299c-.04-.851-.175-1.433-.372-1.942a3.9 3.9 0 0 0-.923-1.417A3.9 3.9 0 0 0 13.24.42c-.51-.198-1.092-.333-1.943-.372C10.445.01 10.173 0 8 0zm0 1.442c2.136 0 2.389.007 3.232.046.78.035 1.204.166 1.486.275.373.145.64.319.92.599s.453.546.598.92c.11.281.24.705.275 1.486.039.843.047 1.096.047 3.232s-.008 2.389-.047 3.232c-.035.78-.166 1.203-.275 1.485a2.5 2.5 0 0 1-.598.92c-.28.28-.546.453-.92.598-.28.11-.704.24-1.485-.276-.843.038-1.096.047-3.232.047s-2.39-.009-3.233-.047c-.78-.036-1.203-.166-1.485-.276a2.5 2.5 0 0 1-.92-.598 2.5 2.5 0 0 1-.598-.92c-.11-.28-.24-.705-.276-1.485C1.442 10.39 1.434 10.147 1.434 8s.008-2.389.047-3.232c.036-.78.166-1.204.276-1.486.145-.373.319-.64.599-.92s.546-.453.92-.598c.282-.11.705-.24 1.485-.276.843-.039 1.096-.047 3.233-.047zM8 3.882a4.108 4.108 0 1 0 0 8.216 4.108 4.108 0 0 0 0-8.216zM8 10.479a2.479 2.479 0 1 1 0-4.958 2.479 2.479 0 0 1 0 4.958zM13.598 3.883a1.202 1.202 0 1 0 0 2.404 1.202 1.202 0 0 0 0-2.404z"/>
+                </svg>
+            </a>
+            <a href="mailto:sanjayragavendrak@gmail.com" title="Email" class="flex items-center gap-2 text-gray-300 hover:text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M.05 3.555A2 2 0 0 1 2 2h12a2 2 0 0 1 1.95 1.555L8 8.414.05 3.555zM0 4.697v7.104l5.803-3.558L0 4.697zM6.761 8.83l-6.57 4.027A2 2 0 0 0 2 14h12a2 2 0 0 0 1.808-1.144l-6.57-4.027L8 9.586l-1.239-.757zm3.436-.586L16 11.801V4.697l-5.803 3.558z"/>
+                </svg>
+            </a>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script type="module">
+// ═══════════════════════════════════════════════════════════════
+//  THREE.JS BACKGROUND
+// ═══════════════════════════════════════════════════════════════
+import { randomScrambleForEvent } from 'cubing/scramble';
+import 'cubing/twisty';
+
+(function () {
+    let scene, camera, renderer, particles, velocities;
+    const mouse = new THREE.Vector2(10, 10);
+
+    function init() {
+        scene    = new THREE.Scene();
+        camera   = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 1000);
+        renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('bg-canvas'), alpha: true });
+        renderer.setPixelRatio(devicePixelRatio);
+        renderer.setSize(innerWidth, innerHeight);
+
+        const N = 5000;
+        const pos = new Float32Array(N * 3);
+        const vel = new Float32Array(N * 3);
+        const col = new Float32Array(N * 3);
+        const c   = new THREE.Color();
+        velocities = vel;
+
+        for (let i = 0; i < N; i++) {
+            const i3 = i * 3;
+            pos[i3]   = (Math.random() - .5) * 12;
+            pos[i3+1] = (Math.random() - .5) * 12;
+            pos[i3+2] = (Math.random() - .5) * 12;
+            c.setHSL(Math.random(), .8, .6);
+            col[i3] = c.r; col[i3+1] = c.g; col[i3+2] = c.b;
+        }
+
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        geo.setAttribute('color',    new THREE.BufferAttribute(col, 3));
+        particles = new THREE.Points(geo, new THREE.PointsMaterial({
+            size: .025, vertexColors: true,
+            blending: THREE.AdditiveBlending, transparent: true, opacity: .9
+        }));
+        scene.add(particles);
+        camera.position.z = 5;
+
+        window.addEventListener('mousemove', e => {
+            mouse.x =  (e.clientX / innerWidth)  * 2 - 1;
+            mouse.y = -(e.clientY / innerHeight) * 2 + 1;
+        });
+        window.addEventListener('resize', () => {
+            camera.aspect = innerWidth / innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(innerWidth, innerHeight);
+        });
+        loop();
+    }
+
+    function loop() {
+        requestAnimationFrame(loop);
+        const t   = performance.now() * .0001;
+        const pos = particles.geometry.attributes.position.array;
+        const mv  = new THREE.Vector3(mouse.x, mouse.y, .5).unproject(camera);
+        const dir = mv.sub(camera.position).normalize();
+        const mp  = camera.position.clone().add(dir.multiplyScalar(-camera.position.z / dir.z));
+
+        for (let i = 0; i < pos.length / 3; i++) {
+            const i3 = i * 3, x = pos[i3], y = pos[i3+1];
+            velocities[i3]   += Math.cos(y * .4 + t) * .00004;
+            velocities[i3+1] += Math.sin(x * .4 + t) * .00004;
+            const dx = x - mp.x, dy = y - mp.y, d = Math.sqrt(dx*dx + dy*dy);
+            if (d < 1.5) { const f = (1.5-d)/1.5; velocities[i3]+=(dx/d)*f*.02; velocities[i3+1]+=(dy/d)*f*.02; }
+            velocities[i3]   *= .97; velocities[i3+1] *= .97;
+            pos[i3]   += velocities[i3];   pos[i3+1] += velocities[i3+1];
+            if (pos[i3]   >  6 || pos[i3]   < -6) velocities[i3]   *= -.9;
+            if (pos[i3+1] >  6 || pos[i3+1] < -6) velocities[i3+1] *= -.9;
+        }
+        particles.geometry.attributes.position.needsUpdate = true;
+        renderer.render(scene, camera);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else { init(); }
+})();
+
+
+// ═══════════════════════════════════════════════════════════════
+//  SCRAMBLE GENERATORS (using cubing.js)
+// ═══════════════════════════════════════════════════════════════
+const WCA_EVENTS = {
+    '333': '3x3x3 Cube',   '222': '2x2x2 Cube',   '444': '4x4x4 Cube',
+    '555': '5x5x5 Cube',   '666': '6x6x6 Cube',   '777': '7x7x7 Cube',
+    '333bf': '3x3 Blind',  '333oh': '3x3 One-Handed', '333fm': 'Fewest Moves',
+    '444bf': '4x4 Blind',  '555bf': '5x5 Blind'
+};
+
+// Map events to puzzle types for twisty-player
+function getPuzzleType(eventCode) {
+    const puzzleMap = {
+        '222': '2x2x2', '333': '3x3x3', '444': '4x4x4', '555': '5x5x5',
+        '666': '6x6x6', '777': '7x7x7', '333bf': '3x3x3', '333oh': '3x3x3',
+        '333fm': '3x3x3', '444bf': '4x4x4', '555bf': '5x5x5'
+    };
+    return puzzleMap[eventCode] || '3x3x3';
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  SCRAMBLE + VISUALIZATION
+// ═══════════════════════════════════════════════════════════════
+const scrambleEl  = document.getElementById('scramble');
+const vizCon      = document.getElementById('puzzle-visualization');
+const eventSel    = document.getElementById('event-selector');
+
+Object.entries(WCA_EVENTS).forEach(([id, name]) => {
+    const o = document.createElement('option');
+    o.value = id; o.textContent = name;
+    eventSel.appendChild(o);
+});
+const savedEvent = localStorage.getItem('wcaTimerEvent') || '333';
+eventSel.value = WCA_EVENTS[savedEvent] ? savedEvent : '333';
+
+let currentTwistyPlayer = null;
+
+async function generateScramble() {
+    const event = eventSel.value;
+    
+    try {
+        // Generate scramble using cubing.js
+        const alg = await randomScrambleForEvent(event);
+        const scrambleText = alg.toString();
+        
+        scrambleEl.textContent = scrambleText;
+        
+        // Update twisty-player visualization
+        vizCon.classList.remove('show');
+        
+        // Clear previous twisty-player
+        if (currentTwistyPlayer) {
+            currentTwistyPlayer.remove();
+        }
+        
+        // Create new twisty-player element
+        const player = document.createElement('twisty-player');
+        player.setAttribute('alg', scrambleText);
+        player.setAttribute('puzzle', getPuzzleType(event));
+        player.setAttribute('visualization', '3D');
+        player.setAttribute('background', 'none');
+        player.style.width = '100%';
+        player.style.maxWidth = '400px';
+        player.style.height = 'auto';
+        player.style.minHeight = '280px';
+        
+        vizCon.appendChild(player);
+        currentTwistyPlayer = player;
+        
+        setTimeout(() => {
+            vizCon.classList.add('show');
+        }, 50);
+        
+    } catch (err) {
+        console.error('Scramble generation error:', err);
+        scrambleEl.textContent = 'Error generating scramble';
+    }
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+//  SETTINGS STATE
+// ═══════════════════════════════════════════════════════════════
+let settings = {
+    inspectionEnabled: JSON.parse(localStorage.getItem('wcaSettingInspection') ?? 'true')
+};
+
+function saveSettings() {
+    localStorage.setItem('wcaSettingInspection', JSON.stringify(settings.inspectionEnabled));
+}
+
+// Toggle UI sync
+const toggleInspection = document.getElementById('toggle-inspection');
+function syncToggleUI() {
+    toggleInspection.classList.toggle('on', settings.inspectionEnabled);
+}
+syncToggleUI();
+
+toggleInspection.addEventListener('click', () => {
+    settings.inspectionEnabled = !settings.inspectionEnabled;
+    syncToggleUI();
+    saveSettings();
+});
+
+// Settings modal open/close
+const settingsModal = document.getElementById('settings-modal');
+document.getElementById('settings-btn').addEventListener('click', () => {
+    settingsModal.classList.add('open');
+});
+document.getElementById('close-settings-btn').addEventListener('click', () => {
+    settingsModal.classList.remove('open');
+});
+settingsModal.addEventListener('click', e => {
+    if (e.target === settingsModal) settingsModal.classList.remove('open');
+});
+
+
+// ═══════════════════════════════════════════════════════════════
+//  MANUAL TIME ENTRY
+// ═══════════════════════════════════════════════════════════════
+const manualModal   = document.getElementById('manual-modal');
+const manualInput   = document.getElementById('manual-input');
+const manualPreview = document.getElementById('manual-preview');
+
+/** Convert raw digit string (e.g. "456") → milliseconds (4560) */
+function digitsToMs(digits) {
+    if (!digits || digits === '0') return 0;
+    // Pad to at least 3 digits so last 2 are always centiseconds
+    const padded = digits.padStart(3, '0');
+    const cs  = parseInt(padded.slice(-2), 10);       // centiseconds
+    const sec = parseInt(padded.slice(-4, -2) || '0', 10);
+    const min = parseInt(padded.slice(0, -4) || '0', 10);
+    return (min * 60 + sec) * 1000 + cs * 10;
+}
+
+function formatManualPreview(digits) {
+    if (!digits) return '—';
+    const ms  = digitsToMs(digits);
+    const min = Math.floor(ms / 60000);
+    const sec = Math.floor((ms % 60000) / 1000);
+    const cs  = Math.floor((ms % 1000) / 10);
+    if (min > 0) return `${min}:${String(sec).padStart(2,'0')}.${String(cs).padStart(2,'0')}`;
+    return `${sec}.${String(cs).padStart(2,'0')}`;
+}
+
+manualInput.addEventListener('input', () => {
+    // Strip non-digits
+    manualInput.value = manualInput.value.replace(/\D/g, '');
+    manualPreview.textContent = formatManualPreview(manualInput.value) || '—';
+});
+
+function openManualModal() {
+    manualInput.value = '';
+    manualPreview.textContent = '—';
+    settingsModal.classList.remove('open');
+    manualModal.classList.add('open');
+    setTimeout(() => manualInput.focus(), 200);
+}
+
+function closeManualModal() {
+    manualModal.classList.remove('open');
+}
+
+document.getElementById('open-manual-btn').addEventListener('click', openManualModal);
+document.getElementById('manual-cancel-btn').addEventListener('click', closeManualModal);
+manualModal.addEventListener('click', e => { if (e.target === manualModal) closeManualModal(); });
+
+document.getElementById('manual-confirm-btn').addEventListener('click', () => {
+    const digits = manualInput.value;
+    if (!digits) return;
+    const ms = digitsToMs(digits);
+    if (ms <= 0) return;
+    addTime({ baseTime: ms, status: 'ok', event: eventSel.value });
+    closeManualModal();
+    generateScramble();
+});
+
+// Enter key confirms in manual modal
+manualInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('manual-confirm-btn').click();
+    if (e.key === 'Escape') closeManualModal();
+});
+
+
+// ═══════════════════════════════════════════════════════════════
+//  TIMER
+// ═══════════════════════════════════════════════════════════════
+const timerEl  = document.getElementById('timer');
+const timerCon = document.getElementById('timer-container');
+
+let times = [], timerState = 'idle', startTime = 0;
+let timerInterval, inspectionTimer, holdTimeout, inspectionPenalty = 0, audioCtx;
+
+function setTimerClass(cls) {
+    timerEl.className = 'timer-display font-black tracking-tighter' + (cls ? ' ' + cls : '');
+}
+
+function formatTime(ms, status = 'ok') {
+    if (status === 'dnf') return 'DNF';
+    const total = ms + (status === '+2' ? 2000 : 0);
+    const m = Math.floor(total / 60000);
+    const s = Math.floor((total % 60000) / 1000);
+    const c = Math.floor((total % 1000) / 10);
+    return (m > 0 ? `${m}:${String(s).padStart(2,'0')}` : `${s}`) + '.' + String(c).padStart(2,'0') + (status === '+2' ? '+' : '');
+}
+
+function playBeep(freq = 440, dur = 150) {
+    try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.connect(g); g.connect(audioCtx.destination);
+        o.frequency.value = freq;
+        g.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur / 1000);
+        o.start(); o.stop(audioCtx.currentTime + dur / 1000);
+    } catch(e) {}
+}
+
+function speak(text) {
+    if ('speechSynthesis' in window) {
+        speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.rate = 1.3; u.pitch = 1.2;
+        speechSynthesis.speak(u);
+    } else { playBeep(660, 150); }
+}
+
+function startInspection() {
+    // If inspection is disabled, go straight to arming
+    if (!settings.inspectionEnabled) {
+        timerState = 'arming'; setTimerClass('timer-running');
+        holdTimeout = setTimeout(() => { timerState = 'ready'; setTimerClass('timer-ready'); }, 550);
+        return;
+    }
+    timerState = 'inspecting'; inspectionPenalty = 0;
+    let sec = 0; timerEl.textContent = 15; setTimerClass('timer-inspecting');
+    inspectionTimer = setInterval(() => {
+        sec++;
+        if (!inspectionTimer) return;
+        if (sec <= 15) {
+            timerEl.textContent = 15 - sec;
+            timerEl.classList.add('inspection-tick');
+            setTimeout(() => timerEl.classList.remove('inspection-tick'), 500);
+        }
+        if (sec === 8 || sec === 12) speak(sec === 8 ? 'eight seconds' : 'twelve seconds');
+        if (sec === 15) { inspectionPenalty = 2000; setTimerClass('timer-penalty'); }
+        else if (sec === 17) { inspectionPenalty = 'dnf'; stopTimer(true); }
+    }, 1000);
+}
+
+function startTimer() {
+    document.body.classList.add('focus-mode');
+    startTime = Date.now(); timerState = 'timing'; setTimerClass('timer-running');
+    timerInterval = setInterval(() => {
+        const e = Date.now() - startTime;
+        const m = Math.floor(e / 60000), s = Math.floor((e % 60000) / 1000);
+        timerEl.textContent = m > 0 ? `${m}:${String(s).padStart(2,'0')}` : s;
+    }, 100);
+}
+
+function stopTimer(isDNF = false) {
+    clearInterval(timerInterval); clearInterval(inspectionTimer); inspectionTimer = null;
+    const final = isDNF ? Infinity : Date.now() - startTime;
+    const status = (isDNF || inspectionPenalty === 'dnf') ? 'dnf' : inspectionPenalty === 2000 ? '+2' : 'ok';
+    timerState = 'stopped'; setTimerClass(''); timerEl.textContent = formatTime(final, status);
+    document.body.classList.remove('focus-mode');
+
+    const event    = eventSel.value;
+    const evTimes  = times.filter(t => t.event === event);
+    addTime({ baseTime: final, status, event });
+    generateScramble();
+
+    const num = status === 'dnf' ? Infinity : final + (status === '+2' ? 2000 : 0);
+    if (num !== Infinity) {
+        const best = Math.min(...evTimes.filter(t => t.status !== 'dnf').map(t => t.baseTime + (t.status === '+2' ? 2000 : 0)), Infinity);
+        if (num < best) { timerEl.classList.add('new-best-animation'); setTimeout(() => timerEl.classList.remove('new-best-animation'), 2500); }
+    }
+    const worst = Math.max(...evTimes.map(t => t.status === 'dnf' ? -1 : t.baseTime + (t.status === '+2' ? 2000 : 0)), 0);
+    if (num > worst && evTimes.length) { timerEl.classList.add('new-worst-animation'); setTimeout(() => timerEl.classList.remove('new-worst-animation'), 1200); }
+}
+
+function cancelSolve() {
+    clearTimeout(holdTimeout); clearInterval(inspectionTimer); inspectionTimer = null; inspectionPenalty = 0;
+    timerState = 'stopped'; setTimerClass(''); timerEl.textContent = formatTime(0);
+    document.body.classList.remove('focus-mode');
+}
+
+// Keyboard — block spacebar when a modal is open
+function anyModalOpen() {
+    return settingsModal.classList.contains('open') || manualModal.classList.contains('open') ||
+           !document.getElementById('info-modal').classList.contains('pointer-events-none');
+}
+
+window.addEventListener('keydown', e => {
+    if (anyModalOpen()) return; // don't interfere with modals
+    if (e.code === 'Escape' && ['inspecting','arming','ready'].includes(timerState)) { e.preventDefault(); cancelSolve(); return; }
+    if (timerState === 'timing') { e.preventDefault(); stopTimer(); return; }
+    if (e.code === 'Space' && !e.repeat) {
+        e.preventDefault();
+        if (timerState === 'idle' || timerState === 'stopped') {
+            startInspection();
+        } else if (timerState === 'inspecting') {
+            timerState = 'arming'; setTimerClass('timer-running');
+            holdTimeout = setTimeout(() => { timerState = 'ready'; setTimerClass('timer-ready'); }, 550);
+        }
+    }
+});
+window.addEventListener('keyup', e => {
+    if (anyModalOpen()) return;
+    if (e.code === 'Space') {
+        e.preventDefault(); clearTimeout(holdTimeout);
+        if (timerState === 'ready') { clearInterval(inspectionTimer); inspectionTimer = null; startTimer(); }
+        else if (timerState === 'arming') {
+            if (!settings.inspectionEnabled) {
+                // No inspection: just go back to idle
+                timerState = 'stopped'; setTimerClass(''); timerEl.textContent = formatTime(0);
+            } else {
+                timerState = 'inspecting'; setTimerClass(inspectionPenalty > 0 ? 'timer-penalty' : 'timer-inspecting');
+            }
+        }
+    }
+});
+
+// Touch
+timerCon.addEventListener('touchstart', e => {
+    if (anyModalOpen()) return;
+    if (e.touches.length > 1) return; e.preventDefault();
+    if (timerState === 'timing') { stopTimer(); return; }
+    if (timerState === 'idle' || timerState === 'stopped') {
+        startInspection();
+    } else if (timerState === 'inspecting') {
+        timerState = 'arming'; setTimerClass('timer-running');
+        holdTimeout = setTimeout(() => { timerState = 'ready'; setTimerClass('timer-ready'); }, 550);
+    }
+}, { passive: false });
+timerCon.addEventListener('touchend', e => {
+    if (anyModalOpen()) return;
+    e.preventDefault(); clearTimeout(holdTimeout);
+    if (timerState === 'ready') { clearInterval(inspectionTimer); inspectionTimer = null; startTimer(); }
+    else if (timerState === 'arming') {
+        if (!settings.inspectionEnabled) {
+            timerState = 'stopped'; setTimerClass(''); timerEl.textContent = formatTime(0);
+        } else {
+            timerState = 'inspecting'; setTimerClass(inspectionPenalty > 0 ? 'timer-penalty' : 'timer-inspecting');
+        }
+    }
+}, { passive: false });
+
+
+// ═══════════════════════════════════════════════════════════════
+//  HISTORY + STATS
+// ═══════════════════════════════════════════════════════════════
+const histBody = document.getElementById('history-body');
+
+function saveTimes() { localStorage.setItem('wcaTimerHistory', JSON.stringify(times)); }
+function loadTimes() { times = JSON.parse(localStorage.getItem('wcaTimerHistory') || '[]'); }
+
+function addTime(t) { times.push(t); saveTimes(); renderHistory(); updateStats(); }
+
+function renderHistory() {
+    histBody.innerHTML = '';
+    const event   = eventSel.value;
+    const evTimes = times.filter(t => t.event === event);
+    evTimes.slice().reverse().forEach((t, i) => {
+        const oi  = times.findIndex(x => x === t);
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td class="p-2">${evTimes.length - i}</td>
+            <td class="p-2 ${t.status==='dnf'?'status-dnf':t.status==='+2'?'status-plus2':''}">${formatTime(t.baseTime, t.status)}</td>
+            <td class="p-2"><div class="flex justify-center items-center gap-2">
+                <button data-a="plus2" data-i="${oi}" class="font-bold text-yellow-400 w-9 text-xs py-1 rounded bg-gray-700/50 hover:bg-gray-700">+2</button>
+                <button data-a="dnf"   data-i="${oi}" class="font-bold text-red-400   w-9 text-xs py-1 rounded bg-gray-700/50 hover:bg-gray-700">DNF</button>
+                <button data-a="del"   data-i="${oi}" class="font-bold text-gray-400 text-xs py-1 px-2 rounded bg-gray-700/50 hover:bg-gray-700">Del</button>
+            </div></td>`;
+        histBody.appendChild(row);
+    });
+}
+
+histBody.addEventListener('click', e => {
+    const btn = e.target.closest('button'); if (!btn) return;
+    const a = btn.dataset.a, i = parseInt(btn.dataset.i);
+    if (isNaN(i) || !times[i]) return;
+    if (a === 'del') {
+        const n = parseInt(prompt('How many?','1')||'0'); if (!n || n <= 0) return;
+        const ev = times[i].event; let c = 0;
+        for (let j = i; j < times.length && c < n; j++) if (times[j].event === ev) { times.splice(j,1); j--; c++; }
+        timerState = 'stopped'; setTimerClass(''); timerEl.textContent = formatTime(0);
+    } else if (a === 'plus2') {
+        if (times[i].status !== 'dnf') times[i].status = times[i].status === '+2' ? 'ok' : '+2';
+    } else if (a === 'dnf') {
+        times[i].status = times[i].status === 'dnf' ? 'ok' : 'dnf';
+    }
+    saveTimes(); renderHistory(); updateStats();
+});
+
+function calcAo(n) {
+    const ev = times.filter(t => t.event === eventSel.value);
+    if (ev.length < n) return null;
+    const last = ev.slice(-n);
+    if (last.some(t => t.status === 'dnf')) return 'DNF';
+    const sorted = last.map(t => t.baseTime + (t.status === '+2' ? 2000 : 0)).sort((a,b) => a-b);
+    return sorted.slice(1,-1).reduce((a,b) => a+b, 0) / (n-2);
+}
+
+function updateStats() {
+    const ev = times.filter(t => t.event === eventSel.value);
+    if (!ev.length) { ['ao5','ao12','best','worst'].forEach(id => document.getElementById(id).textContent = 'N/A'); return; }
+    const a5 = calcAo(5), a12 = calcAo(12);
+    document.getElementById('ao5').textContent  = a5  === 'DNF' ? 'DNF' : a5  ? formatTime(a5)  : 'N/A';
+    document.getElementById('ao12').textContent = a12 === 'DNF' ? 'DNF' : a12 ? formatTime(a12) : 'N/A';
+    const valid = ev.filter(t => t.status !== 'dnf');
+    if (valid.length) {
+        const b = valid.reduce((p,c) => (p.baseTime+(p.status==='+2'?2000:0)) < (c.baseTime+(c.status==='+2'?2000:0)) ? p : c);
+        document.getElementById('best').textContent = formatTime(b.baseTime, b.status);
+        const w = valid.reduce((p,c) => (p.baseTime+(p.status==='+2'?2000:0)) > (c.baseTime+(c.status==='+2'?2000:0)) ? p : c);
+        document.getElementById('worst').textContent = formatTime(w.baseTime, w.status);
+    }
+    if (ev.some(t => t.status === 'dnf')) document.getElementById('worst').textContent = 'DNF';
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+//  IMPORT / EXPORT
+// ═══════════════════════════════════════════════════════════════
+function dl(data, type, name) {
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([data],{type})), download: name, style:'display:none' });
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+const today = () => new Date().toISOString().slice(0,10);
+
+document.getElementById('export-csv-btn').addEventListener('click', () => {
+    if (!times.length) return;
+    dl(['event,baseTime,status', ...times.map(t => [t.event,t.baseTime,t.status].join(','))].join('\n'), 'text/csv', `hoodieboy-${today()}.csv`);
+});
+document.getElementById('export-txt-btn').addEventListener('click', () => {
+    if (!times.length) return;
+    const d = { properties: { sessionData: '{"1":{"name":"Session 1"}}' } };
+    const s = {}; times.forEach(t => { if (!s[t.event]) s[t.event]=[]; s[t.event].push(t); });
+    let i = 1; for (const ev in s) d[`session${i++}`] = s[ev].map(t => [[(t.status==='+2'?2000:t.status==='dnf'?-1:0), t.status==='dnf'?0:t.baseTime],'','',Math.floor(Date.now()/1000)]);
+    dl(JSON.stringify(d,null,2), 'text/plain', `hoodieboy-${today()}.txt`);
+});
+document.getElementById('import-btn').addEventListener('click', () => document.getElementById('import-file-input').click());
+document.getElementById('import-file-input').addEventListener('change', e => {
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = ev => { f.name.endsWith('.csv') ? importCSV(ev.target.result) : importTXT(ev.target.result); };
+    r.readAsText(f); e.target.value = null;
+});
+
+function importCSV(text) {
+    const lines = text.split(/[\r\n]+/).filter(l => l); if (lines.length < 2) return;
+    const imp = []; let err = 0;
+    for (let i = 1; i < lines.length; i++) {
+        const [ev, bt, st] = lines[i].split(',');
+        const t = bt === 'Infinity' ? Infinity : parseFloat(bt);
+        if (!WCA_EVENTS[ev] || isNaN(t) || !['ok','+2','dnf'].includes(st)) { err++; continue; }
+        imp.push({ event:ev, baseTime:t, status:st });
+    }
+    if (!imp.length) { alert('No valid solves found.'); return; }
+    if (confirm(`Import ${imp.length} solves${err?' ('+err+' skipped)':''}?`)) { times=[...times,...imp]; saveTimes(); renderHistory(); updateStats(); }
+}
+
+function importTXT(text) {
+    let data; try { data = JSON.parse(text); } catch { alert('Invalid file.'); return; }
+    const all = [];
+    for (const k in data) if (k.startsWith('session')) data[k].forEach(s => {
+        if (!Array.isArray(s) || !Array.isArray(s[0])) return;
+        const [[pen, t]] = s;
+        all.push({ baseTime: pen===-1?Infinity:t, status: pen===-1?'dnf':pen===2000?'+2':'ok', event:'' });
+    });
+    if (!all.length) { alert('No solves found.'); return; }
+    const tgt = prompt(`Import ${all.length} solves to which event?\n(${Object.keys(WCA_EVENTS).join(', ')})`, eventSel.value);
+    if (!tgt || !WCA_EVENTS[tgt]) return;
+    all.forEach(s => s.event = tgt);
+    if (confirm(`Import ${all.length} solves to "${WCA_EVENTS[tgt]}"?`)) { times=[...times,...all]; saveTimes(); renderHistory(); updateStats(); }
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+//  EVENT WIRING + INIT
+// ═══════════════════════════════════════════════════════════════
+eventSel.addEventListener('change', () => {
+    localStorage.setItem('wcaTimerEvent', eventSel.value);
+    cancelSolve(); renderHistory(); updateStats(); generateScramble();
+});
+
+document.getElementById('close-modal').addEventListener('click', () => {
+    const m = document.getElementById('info-modal');
+    m.classList.add('opacity-0','pointer-events-none');
+    m.querySelector('div').classList.add('scale-95');
+    localStorage.setItem('cubeTimerVisited','true');
+});
+
+// Boot
+loadTimes(); renderHistory(); updateStats(); generateScramble();
+if (!localStorage.getItem('cubeTimerVisited')) {
+    setTimeout(() => {
+        const m = document.getElementById('info-modal');
+        m.classList.remove('opacity-0','pointer-events-none');
+        m.querySelector('div').classList.remove('scale-95');
+    }, 1000);
+}
+setTimeout(() => document.getElementById('contact-me-box').classList.add('visible'), 3000);
+</script>
+</body>
+</html>
