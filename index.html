@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>The Hoodieboy Timer</title>
+    <title>The Hoodieboy Timer | Solve Editor & Replay</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-
+    <!-- Cubing.js and Twisty Player from CDN -->
     <script type="importmap">
         {
             "imports": {
@@ -15,10 +15,6 @@
             }
         }
     </script>
-    <script type="module">
-        import "cubing/twisty";
-    </script>
-
     <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&family=Orbitron:wght@900&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Roboto Mono', monospace; color: white; text-shadow: 0 0 8px rgba(0,255,255,0.7); background-color: #0c0a15; overflow: hidden; }
@@ -45,26 +41,45 @@
             width: 200px;
             padding: 10px;
         }
-        
         .typing-mode-input:focus { box-shadow: 0 0 20px rgba(103,232,249,0.5); }
 
-        /* Animations */
         .inspection-tick { animation: ipulse .5s ease-in-out; }
         @keyframes ipulse { 0%{transform:scale(1)} 50%{transform:scale(1.15)} 100%{transform:scale(1)} }
 
+        @keyframes new-best-celebrate {
+            0%  { transform:scale(1);    color:white;   text-shadow:none; }
+            25% { transform:scale(1.15); color:#fde047; text-shadow:0 0 10px #fde047,0 0 30px #f59e0b; }
+            50% { transform:scale(1.05); color:#bef264; text-shadow:0 0 10px #bef264,0 0 30px #84cc16; }
+            75% { transform:scale(1.15); color:#67E8F9; text-shadow:0 0 10px #67E8F9,0 0 30px #06b6d4; }
+            100%{ transform:scale(1);    color:white;   text-shadow:none; }
+        }
+        .new-best-animation { animation: new-best-celebrate 2.5s ease-in-out; }
+        @keyframes new-worst-drop {
+            0%  { transform:translateY(-80px) scaleY(1.2); opacity:0; }
+            20% { transform:translateY(0) scaleY(1);       opacity:1; }
+            40% { transform:translateY(-20px) scaleY(1.05); }
+            60% { transform:translateY(0) scaleY(1); }
+            100%{ transform:translateY(0) scaleY(1); }
+        }
+        .new-worst-animation { animation: new-worst-drop 1.2s cubic-bezier(.5,0,.5,1.5); color:#F87171; text-shadow:0 0 15px #F87171; }
+
         .scramble-text { font-size: clamp(.9rem,2.5vw,1.4rem); transition: opacity .5s, transform .5s; min-height: 40px; line-height: 1.6; word-break: break-all; }
-        .history-table tr:hover { background: rgba(255,255,255,.05); }
+        .history-table tr:hover { background: rgba(255,255,255,.05); cursor: pointer; }
         .custom-select { background: rgba(31,41,55,.7); color: #d1d5db; border: 1px solid rgba(255,255,255,.2); }
+        .status-dnf   { color: #f87171; font-weight: bold; }
+        .status-plus2 { color: #fbbf24; }
 
         /* Scramble visualizer */
         #puzzle-visualization {
             margin: .75rem auto 0;
-            opacity: 1;
+            opacity: 0;
+            transition: opacity .5s ease .1s;
             display: flex;
             justify-content: center;
             min-height: 280px;
             align-items: center;
         }
+        #puzzle-visualization.show { opacity: 1; }
         twisty-player {
             width: 100%;
             max-width: 400px;
@@ -78,42 +93,178 @@
         #timer-container { transition: all .5s; }
         body.focus-mode #left-column    { opacity:0; transform:translateX(-100%); pointer-events:none; }
         body.focus-mode #stats-panel    { opacity:0; transform:scale(.9);         pointer-events:none; }
+        body.focus-mode #contact-me-box { opacity:0; transform:translateY(100%);  pointer-events:none; }
         body.focus-mode #timer-container {
-            position:fixed;
-            top:0; left:0; width:100vw; height:100vh;
+            position:fixed; top:0; left:0; width:100vw; height:100vh;
             z-index:100; margin:0; padding:0; flex-grow:1;
             background:rgba(12,10,21,.25);
         }
         body.focus-mode #timer { font-size: clamp(5rem,25vw,18rem); }
+        #contact-me-box.visible { opacity:1; transform:translate(-50%,0); }
 
         /* ── SETTINGS MODAL ── */
         #settings-modal {
             position: fixed; inset: 0;
             background: rgba(0,0,0,.75);
             display: flex; align-items: center; justify-content: center;
-            padding: 1rem; z-index: 200;
-            opacity: 0; pointer-events: none; transition: opacity .3s;
+            padding: 1rem;
+            z-index: 200;
+            opacity: 0; pointer-events: none;
+            transition: opacity .3s;
         }
         #settings-modal.open { opacity: 1; pointer-events: all; }
         #settings-modal .modal-box {
-            background: rgba(15,20,35,.95); border: 1px solid rgba(103,232,249,.25);
-            border-radius: 1.25rem; padding: 2rem; width: 100%; max-width: 420px;
-            box-shadow: 0 0 40px rgba(103,232,249,.15); transform: scale(.94); transition: transform .3s;
+            background: rgba(15,20,35,.95);
+            border: 1px solid rgba(103,232,249,.25);
+            border-radius: 1.25rem;
+            padding: 2rem;
+            width: 100%; max-width: 420px;
+            box-shadow: 0 0 40px rgba(103,232,249,.15);
+            transform: scale(.94);
+            transition: transform .3s;
         }
         #settings-modal.open .modal-box { transform: scale(1); }
 
-        .toggle-track { width: 44px; height: 24px; background: rgba(255,255,255,.15); border-radius: 12px; position: relative; cursor: pointer; transition: background .25s; }
+        .toggle-track {
+            width: 44px; height: 24px;
+            background: rgba(255,255,255,.15);
+            border-radius: 12px;
+            position: relative;
+            cursor: pointer;
+            transition: background .25s;
+            flex-shrink: 0;
+            border: 1px solid rgba(255,255,255,.2);
+        }
         .toggle-track.on { background: rgba(52,211,153,.5); border-color: #34D399; }
-        .toggle-knob { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; background: white; border-radius: 50%; transition: left .25s; }
+        .toggle-knob {
+            position: absolute; top: 2px; left: 2px;
+            width: 18px; height: 18px;
+            background: white; border-radius: 50%;
+            transition: left .25s;
+            box-shadow: 0 1px 4px rgba(0,0,0,.4);
+        }
         .toggle-track.on .toggle-knob { left: 22px; }
 
         /* Settings button */
-        #settings-btn { position: fixed; top: 1rem; right: 1rem; z-index: 150; width: 38px; height: 38px; background: rgba(17,24,39,.8); border: 1px solid rgba(255,255,255,.15); border-radius: .6rem; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        #settings-btn {
+            position: fixed; top: 1rem; right: 1rem;
+            z-index: 150;
+            width: 38px; height: 38px;
+            background: rgba(17,24,39,.8);
+            border: 1px solid rgba(255,255,255,.15);
+            border-radius: .6rem;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer;
+            transition: border-color .2s, box-shadow .2s;
+        }
+        #settings-btn:hover { border-color: rgba(103,232,249,.6); box-shadow: 0 0 10px rgba(103,232,249,.2); }
+
+        /* Manual entry modal */
+        #manual-modal {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,.75);
+            display: flex; align-items: center; justify-content: center;
+            padding: 1rem;
+            z-index: 210;
+            opacity: 0; pointer-events: none;
+            transition: opacity .3s;
+        }
+        #manual-modal.open { opacity: 1; pointer-events: all; }
+        #manual-modal .modal-box {
+            background: rgba(15,20,35,.95);
+            border: 1px solid rgba(103,232,249,.25);
+            border-radius: 1.25rem;
+            padding: 2rem;
+            width: 100%; max-width: 360px;
+            box-shadow: 0 0 40px rgba(103,232,249,.15);
+            transform: scale(.94);
+            transition: transform .3s;
+        }
+        #manual-modal.open .modal-box { transform: scale(1); }
+        #manual-input {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 900;
+            text-align: center;
+            width: 100%;
+            background: transparent;
+            border: none;
+            border-bottom: 2px solid rgba(103,232,249,.5);
+            color: #67E8F9;
+            text-shadow: 0 0 10px #67E8F9;
+            outline: none;
+            letter-spacing: 0.05em;
+            padding: .25rem 0;
+        }
+        #manual-preview {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.1rem;
+            text-align: center;
+            color: rgba(255,255,255,.5);
+            margin-top: .5rem;
+            min-height: 1.5rem;
+        }
+        .settings-row {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: .75rem 0;
+            border-bottom: 1px solid rgba(255,255,255,.07);
+        }
+        .settings-row:last-child { border-bottom: none; }
+        .settings-label { font-size: .9rem; color: #d1d5db; }
+        .settings-desc  { font-size: .72rem; color: rgba(255,255,255,.35); margin-top:.15rem; }
+        .mode-select {
+            background: rgba(31,41,55,.7);
+            color: #d1d5db;
+            border: 1px solid rgba(103,232,249,.4);
+            border-radius: 8px;
+            padding: 6px 12px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            outline: none;
+        }
+        /* Solve Details Modal */
+        #solve-detail-modal {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,.85);
+            display: flex; align-items: center; justify-content: center;
+            padding: 1rem;
+            z-index: 250;
+            opacity: 0; pointer-events: none;
+            transition: opacity .3s;
+            backdrop-filter: blur(6px);
+        }
+        #solve-detail-modal.open { opacity: 1; pointer-events: all; }
+        .detail-box {
+            background: rgba(15,20,35,.98);
+            border: 1px solid rgba(103,232,249,.5);
+            border-radius: 1.5rem;
+            padding: 1.8rem;
+            width: 100%; max-width: 500px;
+            box-shadow: 0 0 50px rgba(103,232,249,.2);
+            transform: scale(.96);
+            transition: transform .3s;
+        }
+        #solve-detail-modal.open .detail-box { transform: scale(1); }
+        .detail-scramble-area {
+            background: rgba(0,0,0,.5);
+            border-radius: 1rem;
+            padding: 0.8rem;
+            border: 1px solid rgba(103,232,249,.3);
+            word-break: break-all;
+            font-family: monospace;
+            font-size: 0.9rem;
+            color: #b9f3ff;
+        }
+        .redo-btn {
+            background: linear-gradient(135deg, rgba(103,232,249,.2), rgba(52,211,153,.1));
+            border: 1px solid #67E8F9;
+            transition: all .2s;
+        }
+        .redo-btn:hover { background: rgba(103,232,249,.35); box-shadow: 0 0 12px #67E8F9; border-color: #a5f3fc; }
     </style>
 </head>
 <body>
 <canvas id="bg-canvas"></canvas>
-
 <button id="settings-btn" title="Settings">
     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="rgba(103,232,249,0.85)" viewBox="0 0 16 16">
         <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z"/>
@@ -121,329 +272,248 @@
     </svg>
 </button>
 
-<div id="settings-modal">
-    <div class="modal-box">
-        <h2 class="text-xl font-bold text-cyan-300 mb-5 text-center" style="font-family:'Orbitron',sans-serif;">⚙ Settings</h2>
-        <div class="settings-row">
-            <div>
-                <div class="settings-label">Inspection Time</div>
-                <div class="settings-desc">15-second WCA inspection before solve</div>
-            </div>
-            <div id="toggle-inspection" class="toggle-track on"><div class="toggle-knob"></div></div>
+<div id="settings-modal"><div class="modal-box"><h2 class="text-xl font-bold text-cyan-300 mb-5 text-center" style="font-family:'Orbitron',sans-serif;">⚙ Settings</h2>
+    <div class="settings-row"><div><div class="settings-label">Inspection Time</div><div class="settings-desc">15-second WCA inspection before solve</div></div><div id="toggle-inspection" class="toggle-track on"><div class="toggle-knob"></div></div></div>
+    <div class="settings-row"><div><div class="settings-label">Timer Mode</div><div class="settings-desc">How to record times</div></div><select id="timer-mode-select" class="mode-select"><option value="default">Default (Spacebar/Tap)</option><option value="typing">Typing (Manual Input)</option><option value="bluetooth">Bluetooth (GAN Timer)</option></select></div>
+    <div class="settings-row" style="padding-top:1rem;"><div><div class="settings-label">Manual Time Entry</div><div class="settings-desc">Add a time without running the timer</div></div><button id="open-manual-btn" class="text-xs font-bold py-2 px-4 rounded-lg" style="background:rgba(103,232,249,.15);border:1px solid rgba(103,232,249,.4);color:#67E8F9;cursor:pointer;">Enter Time</button></div>
+    <button id="close-settings-btn" class="w-full mt-6 py-2 rounded-lg font-bold text-sm" style="background:rgba(103,232,249,.18);border:1px solid rgba(103,232,249,.35);color:#67E8F9;">Close</button>
+</div></div>
+
+<div id="manual-modal"><div class="modal-box"><h2 class="text-lg font-bold text-cyan-300 mb-1 text-center">Manual Entry</h2><p class="text-center text-xs mb-4" style="color:rgba(255,255,255,.4);">Type digits — last 2 are centiseconds<br><span style="color:rgba(103,232,249,.6);">456 → 4.56 &nbsp;|&nbsp; 1234 → 12.34</span></p>
+    <input id="manual-input" type="text" inputmode="numeric" maxlength="7" placeholder="0" autocomplete="off" /><div id="manual-preview">—</div>
+    <div class="flex gap-3 mt-6"><button id="manual-cancel-btn" class="flex-1 py-2 rounded-lg font-bold text-sm" style="background:rgba(255,255,255,.07);">Cancel</button><button id="manual-confirm-btn" class="flex-1 py-2 rounded-lg font-bold text-sm" style="background:rgba(52,211,153,.2);border:1px solid rgba(52,211,153,.5);color:#34D399;">Add Time ✓</button></div>
+</div></div>
+
+<!-- SOLVE DETAIL MODAL (SCRATCHPAD) -->
+<div id="solve-detail-modal">
+    <div class="detail-box">
+        <h3 class="text-xl font-bold text-cyan-300 mb-3 text-center" style="font-family:'Orbitron',sans-serif;">📋 Solve Details</h3>
+        <div class="mb-3"><span class="text-gray-300 text-sm">Time:</span> <span id="detail-time" class="text-2xl font-mono text-white ml-2"></span></div>
+        <div class="mb-3"><span class="text-gray-300 text-sm">Event:</span> <span id="detail-event" class="text-cyan-200 ml-2"></span></div>
+        <div class="mb-2 text-gray-300 text-sm">Original Scramble:</div>
+        <div id="detail-scramble-text" class="detail-scramble-area mb-4 font-mono text-sm"></div>
+        <div class="flex gap-3">
+            <button id="close-detail-btn" class="flex-1 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition text-white">Close</button>
+            <button id="redo-solve-btn" class="flex-1 py-2 rounded-lg redo-btn text-cyan-200 font-bold flex items-center justify-center gap-1">⟳ Redo this solve</button>
         </div>
-        <div class="settings-row">
-            <div>
-                <div class="settings-label">Timer Mode</div>
-                <div class="settings-desc">How to record times</div>
-            </div>
-            <select id="timer-mode-select" class="custom-select rounded-md px-2 py-1">
-                <option value="default">Default (Spacebar/Tap)</option>
-                <option value="typing">Typing (Manual Input)</option>
-                <option value="bluetooth">Bluetooth (GAN Timer)</option>
-            </select>
-        </div>
-        <button id="close-settings-btn" class="w-full mt-6 py-2 rounded-lg font-bold text-sm bg-cyan-600 hover:bg-cyan-700 text-white">Close</button>
     </div>
 </div>
 
 <div class="relative w-full h-screen flex flex-col md:flex-row p-2 sm:p-4 gap-4 z-10">
-
     <div id="left-column" class="w-full md:w-1/2 lg:w-1/3 flex flex-col gap-4">
-
         <div id="scramble-panel" class="panel p-4 shadow-lg">
-            <div class="flex justify-center items-center mb-2 gap-4">
-                <h2 class="text-center text-lg sm:text-xl text-cyan-300">Event</h2>
-                <select id="event-selector" class="custom-select rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-cyan-400"></select>
-            </div>
+            <div class="flex justify-center items-center mb-2 gap-4"><h2 class="text-center text-lg sm:text-xl text-cyan-300">Event</h2><select id="event-selector" class="custom-select rounded-md px-2 py-1"></select></div>
             <p id="scramble" class="scramble-text text-center font-bold">Generating scramble…</p>
             <div id="puzzle-visualization"></div>
         </div>
-
         <div id="history-panel" class="panel p-4 shadow-lg flex-1 flex flex-col min-h-0">
             <h2 class="text-center text-lg sm:text-xl text-cyan-300 mb-2 flex-shrink-0">History</h2>
             <div id="history-scroll-container" class="overflow-y-auto flex-grow">
                 <table class="w-full text-center text-sm sm:text-base history-table">
-                    <thead class="sticky top-0 bg-gray-800/80">
-                        <tr>
-                            <th class="p-2">#</th>
-                            <th class="p-2">Time</th>
-                            <th class="p-2">Actions</th>
-                        </tr>
-                    </thead>
+                    <thead class="sticky top-0 bg-gray-800/80 backdrop-blur-sm"><tr><th class="p-2">#</th><th class="p-2">Time</th><th class="p-2">Actions</th></tr></thead>
                     <tbody id="history-body"></tbody>
-                 </table>
+                </table>
             </div>
         </div>
     </div>
-
     <div id="right-column" class="w-full md:w-1/2 lg:w-2/3 flex flex-col gap-4">
-
-        <div id="timer-container" class="panel flex-1 flex items-center justify-center cursor-pointer">
+        <div id="timer-container" class="panel flex-1 flex items-center justify-center">
             <div id="timer-display-wrapper" style="text-align: center;">
                 <h1 id="timer" class="timer-display font-black tracking-tighter">0.00</h1>
                 <input type="text" id="typing-mode-input" class="typing-mode-input" placeholder="Enter time" style="display: none;">
+                <div id="bluetooth-status" style="font-size: 0.8rem; margin-top: 10px; color: #67E8F9; display: none;"></div>
             </div>
         </div>
-
         <div id="stats-panel" class="panel p-4 shadow-lg flex flex-col sm:flex-row justify-around items-center">
-            <div class="text-center">
-                <h2 class="text-lg sm:text-xl text-cyan-300 mb-2">Stats</h2>
-                <div class="grid grid-cols-2 gap-x-4">
-                    <p>Ao5:  <span id="ao5"   class="font-bold">N/A</span></p>
-                    <p>Ao12: <span id="ao12"  class="font-bold">N/A</span></p>
-                    <p>Best: <span id="best"  class="font-bold">N/A</span></p>
-                    <p>Worst:<span id="worst" class="font-bold">N/A</span></p>
-                </div>
-            </div>
+            <div class="text-center"><h2 class="text-lg sm:text-xl text-cyan-300 mb-2">Stats</h2><div class="grid grid-cols-2 gap-x-4"><p>Ao5:  <span id="ao5"   class="font-bold">N/A</span></p><p>Ao12: <span id="ao12"  class="font-bold">N/A</span></p><p>Best: <span id="best"  class="font-bold">N/A</span></p><p>Worst:<span id="worst" class="font-bold">N/A</span></p></div></div>
+            <div class="text-center mt-4 sm:mt-0"><h2 class="text-lg sm:text-xl text-cyan-300 mb-2">Data</h2><div class="flex justify-center gap-2"><button id="import-btn" class="text-sm bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 rounded">Import</button><button id="export-csv-btn" class="text-sm bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-3 rounded">Export CSV</button><button id="export-txt-btn" class="text-sm bg-cyan-800 hover:bg-cyan-900 text-white font-bold py-2 px-3 rounded">Export TXT</button></div><input type="file" id="import-file-input" class="hidden" accept=".csv,.txt"></div>
         </div>
     </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<div id="info-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50 transition-opacity duration-300 opacity-0 pointer-events-none"><div class="panel max-w-lg w-full p-6 rounded-2xl text-center"><h2 class="text-2xl font-bold text-cyan-300 mb-4">How to Use</h2><p class="mb-2">1. Press <strong class="text-cyan-300">spacebar</strong> or <strong class="text-cyan-300">tap the timer</strong> to start 15s inspection.</p><p class="mb-2">2. To start the solve, <strong class="text-cyan-300">PRESS and HOLD</strong> the spacebar or timer.</p><p class="mb-2">3. Timer turns <strong class="text-green-400">GREEN</strong> after 0.55s — <strong class="text-cyan-300">RELEASE</strong> to start.</p><p class="mb-2">4. Press <strong class="text-cyan-300">ANY KEY</strong> or <strong class="text-cyan-300">TAP</strong> to stop.</p><button id="close-modal" class="bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-2 px-6 rounded-lg">Got it!</button></div></div>
+
+<div id="contact-me-box" class="fixed bottom-4 left-1/2 transform -translate-x-1/2 opacity-0 translate-y-full transition-all duration-300 z-20"><div class="panel p-3"><div class="flex items-center gap-4"><a href="https://www.instagram.com/thehoodiecuber/" target="_blank" class="flex items-center gap-2 text-gray-300 hover:text-white"><svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M8 0C5.829 0 5.556.01 4.703.048 3.85.088 3.269.222 2.76.42a3.9 3.9 0 0 0-1.417.923A3.9 3.9 0 0 0 .42 2.76C.222 3.268.087 3.85.048 4.703.01 5.555 0 5.827 0 8.001c0 2.172.01 2.444.048 3.297.04.852.174 1.433.372 1.942.205.526.478.972.923 1.417.444.445.89.719 1.416.923.51.198 1.09.333 1.942.372C5.555 15.99 5.827 16 8 16s2.444-.01 3.298-.048c.851-.04 1.434-.174 1.943-.372a3.9 3.9 0 0 0 1.416-.923c.445-.445.718-.891.923-1.417.197-.509.332-1.09.372-1.942C15.99 10.445 16 10.173 16 8s-.01-2.445-.048-3.299c-.04-.851-.175-1.433-.372-1.942a3.9 3.9 0 0 0-.923-1.417A3.9 3.9 0 0 0 13.24.42c-.51-.198-1.092-.333-1.943-.372C10.445.01 10.173 0 8 0z"/></svg></a><a href="mailto:sanjayragavendrak@gmail.com" class="flex items-center gap-2 text-gray-300 hover:text-white"><svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M.05 3.555A2 2 0 0 1 2 2h12a2 2 0 0 1 1.95 1.555L8 8.414.05 3.555zM0 4.697v7.104l5.803-3.558L0 4.697zM6.761 8.83l-6.57 4.027A2 2 0 0 0 2 14h12a2 2 0 0 0 1.808-1.144l-6.57-4.027L8 9.586l-1.239-.757zm3.436-.586L16 11.801V4.697l-5.803 3.558z"/></svg></a></div></div></div>
+
 <script type="module">
-    import { randomScrambleForEvent } from 'cubing/scramble';
+import { randomScrambleForEvent } from 'cubing/scramble';
+import 'cubing/twisty';
 
-    // UI ELEMENTS
-    const timerEl = document.getElementById('timer');
-    const scrambleEl = document.getElementById('scramble');
-    const eventSel = document.getElementById('event-selector');
-    const timerContainer = document.getElementById('timer-container');
-    const visualizerEl = document.getElementById('puzzle-visualization');
-    const timerModeSelect = document.getElementById('timer-mode-select');
-    const typingInput = document.getElementById('typing-mode-input');
-    const settingsBtn = document.getElementById('settings-btn');
-    const settingsModal = document.getElementById('settings-modal');
-    const closeSettingsBtn = document.getElementById('close-settings-btn');
-    const toggleInspection = document.getElementById('toggle-inspection');
-
-    // TIMER STATE
-    let times = [];
-    let currentEvent = "333";
-    let timerMode = "default"; // 'default' or 'typing'
-    let timerInterval = null;
-    let startHoldTime = 0;
-    let isHolding = false;
-    let isRunning = false;
-    let inInspection = false;
-    let solveStartTime = 0;
-    let inspectionInterval = null;
-    let inspectionRemaining = 15;
-    let useInspection = true;
-
-    const WCA_EVENTS = {
-        "333": "3x3x3", "222": "2x2x2", "444": "4x4x4", "555": "5x5x5",
-        "666": "6x6x6", "777": "7x7x7", "333oh": "3x3 OH", "sq1": "Square-1",
-        "pyram": "Pyraminx", "minx": "Megaminx", "skewb": "Skewb"
-    };
-
-    // Populate Events
-    Object.keys(WCA_EVENTS).forEach(k => {
-        const opt = document.createElement('option');
-        opt.value = k; opt.textContent = WCA_EVENTS[k];
-        eventSel.appendChild(opt);
-    });
-
-    // WCA Scramble & Visualization Fix
-    async function generateScramble() {
-        scrambleEl.style.opacity = 0;
-        try {
-            const sc = await randomScrambleForEvent(currentEvent);
-            scrambleEl.textContent = sc.toString();
-            scrambleEl.style.opacity = 1;
-
-            // Render twisty visualizer
-            visualizerEl.innerHTML = '';
-            const player = document.createElement('twisty-player');
-            player.setAttribute('puzzle', currentEvent === "333oh" ? "333" : currentEvent);
-            player.setAttribute('alg', sc.toString());
-            player.setAttribute('control-panel', 'none');
-            player.setAttribute('background', 'none');
-            visualizerEl.appendChild(player);
-        } catch (e) {
-            scrambleEl.textContent = "Error loading scramble. Check connection.";
-            scrambleEl.style.opacity = 1;
-        }
-    }
-
-    // Baseline Timer Handlers (Restored Classic Behaviour)
-    function onDown() {
-        if (timerMode !== 'default' || inInspection) return;
-        if (isRunning) {
-            stopTimer();
-            return;
-        }
-        if (!isHolding) {
-            isHolding = true;
-            timerEl.classList.add('timer-ready');
-            startHoldTime = Date.now();
-        }
-    }
-
-    function onUp() {
-        if (timerMode !== 'default') return;
-        if (isHolding) {
-            isHolding = false;
-            timerEl.classList.remove('timer-ready');
-            const holdDur = Date.now() - startHoldTime;
-            
-            if (holdDur >= 500) { // Valid hold time
-                if (useInspection && !inInspection) {
-                    startInspection();
-                } else {
-                    startTimer();
-                }
-            }
-        }
-    }
-
-    function startInspection() {
-        inInspection = true;
-        inspectionRemaining = 15;
-        timerEl.classList.add('timer-inspecting');
-        timerEl.textContent = inspectionRemaining;
-        
-        inspectionInterval = setInterval(() => {
-            inspectionRemaining--;
-            if (inspectionRemaining > 0) {
-                timerEl.textContent = inspectionRemaining;
-            } else {
-                clearInterval(inspectionInterval);
-                timerEl.textContent = "DNF";
-                inInspection = false;
-            }
-        }, 1000);
-    }
-
-    function startTimer() {
-        if (inInspection) {
-            clearInterval(inspectionInterval);
-            inInspection = false;
-            timerEl.classList.remove('timer-inspecting');
-        }
-        isRunning = true;
-        document.body.classList.add('focus-mode');
-        timerEl.classList.add('timer-running');
-        solveStartTime = Date.now();
-        
-        timerInterval = setInterval(() => {
-            const diff = Date.now() - solveStartTime;
-            timerEl.textContent = (diff / 1000).toFixed(2);
-        }, 10);
-    }
-
-    function stopTimer() {
-        isRunning = false;
-        clearInterval(timerInterval);
-        document.body.classList.remove('focus-mode');
-        timerEl.classList.remove('timer-running');
-        
-        const finalTime = parseFloat(timerEl.textContent);
-        times.push({ event: currentEvent, time: finalTime, date: new Date() });
-        
-        generateScramble();
-        renderHistory();
-        updateStats();
-    }
-
-    // Stats and History
-    function renderHistory() {
-        const body = document.getElementById('history-body');
-        body.innerHTML = '';
-        times.filter(t => t.event === currentEvent).reverse().forEach((s, idx) => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `<td class="p-2">${times.length - idx}</td><td class="p-2 font-bold">${s.time.toFixed(2)}</td><td class="p-2">❌</td>`;
-            body.appendChild(tr);
-        });
-    }
-
-    function updateStats() {
-        const curTimes = times.filter(t => t.event === currentEvent).map(s => s.time);
-        if (curTimes.length === 0) return;
-
-        const best = Math.min(...curTimes);
-        const worst = Math.max(...curTimes);
-        document.getElementById('best').textContent = best.toFixed(2);
-        document.getElementById('worst').textContent = worst.toFixed(2);
-    }
-
-    // Modal and Control Wiring
-    settingsBtn.addEventListener('click', () => settingsModal.classList.add('open'));
-    closeSettingsBtn.addEventListener('click', () => settingsModal.classList.remove('open'));
+// --- THREE.JS BACKGROUND WITH MOUSE REACTION (FIXED) ---
+(function() {
+    let scene, camera, renderer, particles, velocities;
+    const mouse = new THREE.Vector2(10, 10);
     
-    toggleInspection.addEventListener('click', () => {
-        useInspection = !useInspection;
-        toggleInspection.classList.toggle('on', useInspection);
-    });
-
-    timerModeSelect.addEventListener('change', (e) => {
-        timerMode = e.target.value;
-        if (timerMode === 'typing') {
-            typingInput.style.display = 'block';
-            timerEl.style.display = 'none';
-        } else {
-            typingInput.style.display = 'none';
-            timerEl.style.display = 'block';
-        }
-    });
-
-    eventSel.addEventListener('change', (e) => {
-        currentEvent = e.target.value;
-        generateScramble();
-        renderHistory();
-        updateStats();
-    });
-
-    // Keyboard bindings for timer
-    window.addEventListener('keydown', (e) => {
-        if (e.key === ' ' && timerMode === 'default') {
-            e.preventDefault();
-            onDown();
-        }
-    });
-    window.addEventListener('keyup', (e) => {
-        if (e.key === ' ' && timerMode === 'default') {
-            e.preventDefault();
-            onUp();
-        }
-    });
-
-    // Tap/Touch bindings for mobile
-    timerContainer.addEventListener('pointerdown', onDown);
-    window.addEventListener('pointerup', onUp);
-
-    // Initial Boot
-    generateScramble();
-    renderHistory();
-    updateStats();
-
-    // BACKGROUND EFFECT (Three.JS fallback if not fully loaded)
-    try {
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('bg-canvas'), alpha: true });
+    function init() {
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('bg-canvas'), alpha: true });
+        renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setSize(window.innerWidth, window.innerHeight);
-
+        
+        const N = 5000;
+        const positions = new Float32Array(N * 3);
+        const velocitiesArray = new Float32Array(N * 3);
+        const colors = new Float32Array(N * 3);
+        velocities = velocitiesArray;
+        
+        for (let i = 0; i < N; i++) {
+            const i3 = i * 3;
+            positions[i3] = (Math.random() - 0.5) * 12;
+            positions[i3+1] = (Math.random() - 0.5) * 12;
+            positions[i3+2] = (Math.random() - 0.5) * 12;
+            const color = new THREE.Color().setHSL(Math.random(), 0.8, 0.6);
+            colors[i3] = color.r;
+            colors[i3+1] = color.g;
+            colors[i3+2] = color.b;
+        }
+        
         const geometry = new THREE.BufferGeometry();
-        const vertices = [];
-        for (let i = 0; i < 5000; i++) {
-            vertices.push(THREE.MathUtils.randFloatSpread(2000));
-            vertices.push(THREE.MathUtils.randFloatSpread(2000));
-            vertices.push(THREE.MathUtils.randFloatSpread(2000));
-        }
-        geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-        const material = new THREE.PointsMaterial({ color: 0x67E8F9, size: 2, transparent: true, opacity: 0.5 });
-        const points = new THREE.Points(geometry, material);
-        scene.add(points);
-        camera.position.z = 1000;
-
-        function animate() {
-            requestAnimationFrame(animate);
-            points.rotation.x += 0.0005;
-            points.rotation.y += 0.001;
-            renderer.render(scene, camera);
-        }
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        
+        particles = new THREE.Points(geometry, new THREE.PointsMaterial({
+            size: 0.025,
+            vertexColors: true,
+            blending: THREE.AdditiveBlending,
+            transparent: true,
+            opacity: 0.9
+        }));
+        scene.add(particles);
+        camera.position.z = 5;
+        
+        // Mouse move listener for particle interaction
+        window.addEventListener('mousemove', (e) => {
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        });
+        
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
         animate();
-    } catch (e) { console.log('ThreeJS issue ignored.'); }
+    }
+    
+    function animate() {
+        requestAnimationFrame(animate);
+        
+        const time = performance.now() * 0.0001;
+        const positions = particles.geometry.attributes.position.array;
+        
+        // Get mouse position in 3D space
+        const mouseVector = new THREE.Vector3(mouse.x, mouse.y, 0.5);
+        mouseVector.unproject(camera);
+        const direction = mouseVector.sub(camera.position).normalize();
+        const mousePos3D = camera.position.clone().add(direction.multiplyScalar(-camera.position.z / direction.z));
+        
+        for (let i = 0; i < positions.length / 3; i++) {
+            const i3 = i * 3;
+            const x = positions[i3];
+            const y = positions[i3+1];
+            
+            // Organic flow
+            velocities[i3] += Math.cos(y * 0.4 + time) * 0.00004;
+            velocities[i3+1] += Math.sin(x * 0.4 + time) * 0.00004;
+            
+            // Mouse attraction/repulsion
+            const dx = x - mousePos3D.x;
+            const dy = y - mousePos3D.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance < 1.5) {
+                const force = (1.5 - distance) / 1.5;
+                velocities[i3] += (dx / distance) * force * 0.02;
+                velocities[i3+1] += (dy / distance) * force * 0.02;
+            }
+            
+            // Damping
+            velocities[i3] *= 0.97;
+            velocities[i3+1] *= 0.97;
+            
+            // Update positions
+            positions[i3] += velocities[i3];
+            positions[i3+1] += velocities[i3+1];
+            
+            // Boundary bounce
+            if (positions[i3] > 6 || positions[i3] < -6) velocities[i3] *= -0.9;
+            if (positions[i3+1] > 6 || positions[i3+1] < -6) velocities[i3+1] *= -0.9;
+        }
+        
+        particles.geometry.attributes.position.needsUpdate = true;
+        renderer.render(scene, camera);
+    }
+    
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+})();
+
+// --- Constants & helpers ---
+const WCA_EVENTS = { '222':'2x2x2','333':'3x3x3','444':'4x4x4','555':'5x5x5','666':'6x6x6','777':'7x7x7','333bf':'3x3x3 Blindfolded','333oh':'3x3x3 One-Handed','333fm':'3x3x3 Fewest Moves','333mbf':'3x3x3 Multi-Blind','444bf':'4x4x4 Blindfolded','555bf':'5x5x5 Blindfolded','clock':'Clock','minx':'Megaminx','pyram':'Pyraminx','skewb':'Skewb','sq1':'Square-1' };
+function getPuzzleType(ev){ const map={'222':'2x2x2','333':'3x3x3','444':'4x4x4','555':'5x5x5','666':'6x6x6','777':'7x7x7','clock':'clock','minx':'megaminx','pyram':'pyraminx','skewb':'skewb','sq1':'square-1'}; return map[ev]||'3x3x3'; }
+let times=[], timerState='idle', startTime=0, timerInterval, inspectionTimer, holdTimeout, inspectionPenalty=0, audioCtx;
+let currentTwistyPlayer=null, currentScrambleText='', currentEventCode='333';
+const scrambleEl=document.getElementById('scramble'),vizCon=document.getElementById('puzzle-visualization'),eventSel=document.getElementById('event-selector');
+Object.entries(WCA_EVENTS).forEach(([id,name])=>{ const o=document.createElement('option'); o.value=id; o.textContent=name; eventSel.appendChild(o); });
+eventSel.value=localStorage.getItem('wcaTimerEvent')||'333';
+
+async function renderVisualization(){ if(!currentScrambleText) return; vizCon.classList.remove('show'); vizCon.innerHTML=''; if(currentTwistyPlayer) currentTwistyPlayer.remove(); const player=document.createElement('twisty-player'); player.setAttribute('alg',currentScrambleText); player.setAttribute('puzzle',getPuzzleType(currentEventCode)); player.setAttribute('visualization','3D'); player.setAttribute('background','none'); player.style.width='100%'; player.style.maxWidth='400px'; player.style.minHeight='280px'; vizCon.appendChild(player); currentTwistyPlayer=player; setTimeout(()=>vizCon.classList.add('show'),50); }
+async function generateScramble(){ const ev=eventSel.value; currentEventCode=ev; try{ const alg=await randomScrambleForEvent(ev); currentScrambleText=alg.toString(); scrambleEl.textContent=currentScrambleText; await renderVisualization(); }catch(e){ scrambleEl.textContent='Error generating scramble'; } }
+
+// --- extended times: store scramble string ---
+function saveTimes(){ localStorage.setItem('wcaTimerHistory',JSON.stringify(times)); }
+function loadTimes(){ times=JSON.parse(localStorage.getItem('wcaTimerHistory')||'[]'); }
+function addTime(t){ times.push({...t, scramble: t.scramble || currentScrambleText, timestamp:Date.now()}); saveTimes(); renderHistory(); updateStats(); }
+
+function formatTime(ms,status='ok'){ if(status==='dnf') return 'DNF'; const total=ms+(status==='+2'?2000:0); const m=Math.floor(total/60000),s=Math.floor((total%60000)/1000),c=Math.floor((total%1000)/10); return (m>0?`${m}:${String(s).padStart(2,'0')}`:`${s}`)+'.'+String(c).padStart(2,'0')+(status==='+2'?'+':''); }
+
+// History render with clickable rows
+function renderHistory(){ histBody.innerHTML=''; const ev=eventSel.value; const evTimes=times.filter(t=>t.event===ev); evTimes.slice().reverse().forEach((t,idx)=>{ const oi=times.findIndex(x=>x===t); const row=document.createElement('tr'); row.classList.add('hover:bg-white/5','cursor-pointer','transition'); row.dataset.index=oi; row.innerHTML=`<td class="p-2">${evTimes.length-idx}</td><td class="p-2 ${t.status==='dnf'?'status-dnf':t.status==='+2'?'status-plus2':''}">${formatTime(t.baseTime,t.status)}</td><td class="p-2"><div class="flex justify-center items-center gap-2"><button data-a="plus2" data-i="${oi}" class="font-bold text-yellow-400 w-9 text-xs py-1 rounded bg-gray-700/50 hover:bg-gray-700">+2</button><button data-a="dnf" data-i="${oi}" class="font-bold text-red-400 w-9 text-xs py-1 rounded bg-gray-700/50 hover:bg-gray-700">DNF</button><button data-a="del" data-i="${oi}" class="font-bold text-gray-400 text-xs py-1 px-2 rounded bg-gray-700/50 hover:bg-gray-700">Del</button></div></td>`; histBody.appendChild(row); }); }
+// open detail modal
+const detailModal=document.getElementById('solve-detail-modal');
+const detailTimeSpan=document.getElementById('detail-time'),detailEventSpan=document.getElementById('detail-event'),detailScrambleDiv=document.getElementById('detail-scramble-text');
+let currentSelectedSolve=null;
+function openSolveDetail(solveIndex){ const solve=times[solveIndex]; if(!solve) return; currentSelectedSolve=solveIndex; detailTimeSpan.textContent=formatTime(solve.baseTime,solve.status); detailEventSpan.textContent=WCA_EVENTS[solve.event]||solve.event; const scrambleDisplay=solve.scramble || '(scramble not saved for old solves)'; detailScrambleDiv.textContent=scrambleDisplay; detailModal.classList.add('open'); }
+document.getElementById('close-detail-btn').addEventListener('click',()=>detailModal.classList.remove('open'));
+detailModal.addEventListener('click',(e)=>{ if(e.target===detailModal) detailModal.classList.remove('open'); });
+// Redo solve: set scramble, event, and optionally reset timer state
+document.getElementById('redo-solve-btn').addEventListener('click',async()=>{ if(currentSelectedSolve===null) return; const original=times[currentSelectedSolve]; if(!original) return; detailModal.classList.remove('open'); eventSel.value=original.event; localStorage.setItem('wcaTimerEvent',original.event); currentEventCode=original.event; if(original.scramble && original.scramble.trim()){ currentScrambleText=original.scramble; scrambleEl.textContent=currentScrambleText; await renderVisualization(); }else{ await generateScramble(); } if(timerState==='timing'){ clearInterval(timerInterval); } if(inspectionTimer) clearInterval(inspectionTimer); clearTimeout(holdTimeout); timerState='idle'; document.body.classList.remove('focus-mode'); setTimerClass(''); timerDisplay.textContent='0.00'; timerDisplay.classList.add('new-best-animation'); setTimeout(()=>timerDisplay.classList.remove('new-best-animation'),800); });
+// attach row click events (delegation)
+const histBody=document.getElementById('history-body');
+histBody.addEventListener('click',(e)=>{ const btn=e.target.closest('button'); if(btn){ const a=btn.dataset.a,i=parseInt(btn.dataset.i); if(!isNaN(i)&&times[i]){ if(a==='del'){ const n=parseInt(prompt('How many?','1')||'0'); if(n&&n>0){ let c=0; for(let j=i;j<times.length&&c<n;j++) if(times[j].event===times[i].event){ times.splice(j,1); j--; c++; } saveTimes(); renderHistory(); updateStats(); if(timerState!=='timing') timerDisplay.textContent='0.00'; } }else if(a==='plus2'){ if(times[i].status!=='dnf') times[i].status=times[i].status==='+2'?'ok':'+2'; saveTimes(); renderHistory(); updateStats(); }else if(a==='dnf'){ times[i].status=times[i].status==='dnf'?'ok':'dnf'; saveTimes(); renderHistory(); updateStats(); } } return; } const row=e.target.closest('tr'); if(row&&row.dataset.index){ const idx=parseInt(row.dataset.index); if(!isNaN(idx)&&times[idx]) openSolveDetail(idx); } });
+// stats & timer logic
+function calcAo(n){ const ev=times.filter(t=>t.event===eventSel.value); if(ev.length<n) return null; const last=ev.slice(-n); if(last.some(t=>t.status==='dnf')) return 'DNF'; const sorted=last.map(t=>t.baseTime+(t.status==='+2'?2000:0)).sort((a,b)=>a-b); return sorted.slice(1,-1).reduce((a,b)=>a+b,0)/(n-2); }
+function updateStats(){ const ev=times.filter(t=>t.event===eventSel.value); if(!ev.length){ ['ao5','ao12','best','worst'].forEach(id=>document.getElementById(id).textContent='N/A'); return; } const a5=calcAo(5),a12=calcAo(12); document.getElementById('ao5').textContent=a5==='DNF'?'DNF':a5?formatTime(a5):'N/A'; document.getElementById('ao12').textContent=a12==='DNF'?'DNF':a12?formatTime(a12):'N/A'; const valid=ev.filter(t=>t.status!=='dnf'); if(valid.length){ const b=valid.reduce((p,c)=>(p.baseTime+(p.status==='+2'?2000:0))<(c.baseTime+(c.status==='+2'?2000:0))?p:c); document.getElementById('best').textContent=formatTime(b.baseTime,b.status); const w=valid.reduce((p,c)=>(p.baseTime+(p.status==='+2'?2000:0))>(c.baseTime+(c.status==='+2'?2000:0))?p:c); document.getElementById('worst').textContent=formatTime(w.baseTime,w.status); } else document.getElementById('worst').textContent='DNF'; }
+function setTimerClass(cls){ timerDisplay.className='timer-display font-black tracking-tighter'+(cls?' '+cls:''); }
+const timerDisplay=document.getElementById('timer');
+window.defaultTimerEnabled=true; let settings={inspectionEnabled:JSON.parse(localStorage.getItem('wcaSettingInspection')??'true')};
+function startInspection(){ if(!settings.inspectionEnabled){ timerState='arming'; setTimerClass('timer-running'); holdTimeout=setTimeout(()=>{ timerState='ready'; setTimerClass('timer-ready'); },550); return; } timerState='inspecting'; inspectionPenalty=0; let sec=0; timerDisplay.textContent=15; setTimerClass('timer-inspecting'); inspectionTimer=setInterval(()=>{ sec++; if(!inspectionTimer) return; if(sec<=15){ timerDisplay.textContent=15-sec; timerDisplay.classList.add('inspection-tick'); setTimeout(()=>timerDisplay.classList.remove('inspection-tick'),500); } if(sec===15){ inspectionPenalty=2000; setTimerClass('timer-penalty'); } else if(sec===17){ inspectionPenalty='dnf'; stopTimer(true); } },1000); }
+function startTimer(){ document.body.classList.add('focus-mode'); startTime=Date.now(); timerState='timing'; setTimerClass('timer-running'); timerInterval=setInterval(()=>{ const e=Date.now()-startTime; const m=Math.floor(e/60000),s=Math.floor((e%60000)/1000); timerDisplay.textContent=m>0?`${m}:${String(s).padStart(2,'0')}`:s; },100); }
+function stopTimer(isDNF=false){ clearInterval(timerInterval); clearInterval(inspectionTimer); inspectionTimer=null; const final=isDNF?Infinity:Date.now()-startTime; const status=(isDNF||inspectionPenalty==='dnf')?'dnf':inspectionPenalty===2000?'+2':'ok'; timerState='stopped'; setTimerClass(''); timerDisplay.textContent=formatTime(final,status); document.body.classList.remove('focus-mode'); addTime({ baseTime:final, status, event:eventSel.value }); generateScramble(); const num=status==='dnf'?Infinity:final+(status==='+2'?2000:0); if(num!==Infinity){ const ev=times.filter(t=>t.event===eventSel.value); const best=Math.min(...ev.filter(t=>t.status!=='dnf').map(t=>t.baseTime+(t.status==='+2'?2000:0)),Infinity); if(num<best){ timerDisplay.classList.add('new-best-animation'); setTimeout(()=>timerDisplay.classList.remove('new-best-animation'),2500); } } }
+function cancelSolve(){ clearTimeout(holdTimeout); clearInterval(inspectionTimer); timerState='stopped'; setTimerClass(''); timerDisplay.textContent='0.00'; document.body.classList.remove('focus-mode'); }
+function anyModalOpen(){ return document.getElementById('settings-modal').classList.contains('open')||document.getElementById('manual-modal').classList.contains('open')||detailModal.classList.contains('open')||!document.getElementById('info-modal').classList.contains('pointer-events-none'); }
+window.addEventListener('keydown',e=>{ if(anyModalOpen()) return; if(timerMode!=='default'||!window.defaultTimerEnabled) return; if(e.code==='Escape'&&['inspecting','arming','ready'].includes(timerState)){ e.preventDefault(); cancelSolve(); return; } if(timerState==='timing'){ e.preventDefault(); stopTimer(); return; } if(e.code==='Space'&&!e.repeat){ e.preventDefault(); if(timerState==='idle'||timerState==='stopped') startInspection(); else if(timerState==='inspecting'){ timerState='arming'; setTimerClass('timer-running'); holdTimeout=setTimeout(()=>{ timerState='ready'; setTimerClass('timer-ready'); },550); } } });
+window.addEventListener('keyup',e=>{ if(anyModalOpen()) return; if(timerMode!=='default'||!window.defaultTimerEnabled) return; if(e.code==='Space'){ e.preventDefault(); clearTimeout(holdTimeout); if(timerState==='ready'){ clearInterval(inspectionTimer); startTimer(); }else if(timerState==='arming'){ if(!settings.inspectionEnabled){ timerState='stopped'; setTimerClass(''); timerDisplay.textContent='0.00'; }else{ timerState='inspecting'; setTimerClass(inspectionPenalty>0?'timer-penalty':'timer-inspecting'); } } } });
+const timerCon=document.getElementById('timer-container'); timerCon.addEventListener('touchstart',e=>{ if(anyModalOpen()) return; if(timerMode!=='default'||!window.defaultTimerEnabled) return; if(e.touches.length>1) return; e.preventDefault(); if(timerState==='timing'){ stopTimer(); return; } if(timerState==='idle'||timerState==='stopped') startInspection(); else if(timerState==='inspecting'){ timerState='arming'; setTimerClass('timer-running'); holdTimeout=setTimeout(()=>{ timerState='ready'; setTimerClass('timer-ready'); },550); } },{passive:false});
+timerCon.addEventListener('touchend',e=>{ if(anyModalOpen()) return; if(timerMode!=='default'||!window.defaultTimerEnabled) return; e.preventDefault(); clearTimeout(holdTimeout); if(timerState==='ready'){ clearInterval(inspectionTimer); startTimer(); }else if(timerState==='arming'){ if(!settings.inspectionEnabled){ timerState='stopped'; setTimerClass(''); timerDisplay.textContent='0.00'; }else{ timerState='inspecting'; setTimerClass(inspectionPenalty>0?'timer-penalty':'timer-inspecting'); } } },{passive:false});
+// import/export & settings wiring
+document.getElementById('export-csv-btn').addEventListener('click',()=>{ if(!times.length) return; const csv=['event,baseTime,status,scramble']; times.forEach(t=>csv.push([t.event,t.baseTime,t.status,t.scramble||''].join(','))); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv.join('\n')],{type:'text/csv'})); a.download=`hoodieboy-${new Date().toISOString().slice(0,10)}.csv`; a.click(); });
+document.getElementById('export-txt-btn').addEventListener('click',()=>{ if(!times.length) return; const data=JSON.stringify(times,null,2); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([data],{type:'text/plain'})); a.download=`hoodieboy-solves-${Date.now()}.txt`; a.click(); });
+document.getElementById('import-btn').addEventListener('click',()=>document.getElementById('import-file-input').click());
+document.getElementById('import-file-input').addEventListener('change',e=>{ const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=ev=>{ try{ const imported=JSON.parse(ev.target.result); if(Array.isArray(imported)){ times.push(...imported); saveTimes(); renderHistory(); updateStats(); alert(`Imported ${imported.length} solves`); }else alert('Invalid format'); }catch{ alert('File error'); } }; r.readAsText(f); });
+const toggleInspection=document.getElementById('toggle-inspection'); toggleInspection.addEventListener('click',()=>{ settings.inspectionEnabled=!settings.inspectionEnabled; toggleInspection.classList.toggle('on',settings.inspectionEnabled); localStorage.setItem('wcaSettingInspection',JSON.stringify(settings.inspectionEnabled)); });
+const settingsModalDiv=document.getElementById('settings-modal'); document.getElementById('settings-btn').addEventListener('click',()=>settingsModalDiv.classList.add('open')); document.getElementById('close-settings-btn').addEventListener('click',()=>settingsModalDiv.classList.remove('open')); settingsModalDiv.addEventListener('click',e=>{ if(e.target===settingsModalDiv) settingsModalDiv.classList.remove('open'); });
+let timerMode=localStorage.getItem('timerMode')||'default'; const timerModeSelect=document.getElementById('timer-mode-select'),typingInput=document.getElementById('typing-mode-input'),bluetoothStatusDiv=document.getElementById('bluetooth-status'); timerModeSelect.value=timerMode; function switchTimerMode(mode){ timerMode=mode; localStorage.setItem('timerMode',mode); timerDisplay.style.display='none'; typingInput.style.display='none'; bluetoothStatusDiv.style.display='none'; if(mode==='default'){ timerDisplay.style.display='block'; window.defaultTimerEnabled=true; }else if(mode==='typing'){ typingInput.style.display='block'; window.defaultTimerEnabled=false; typingInput.focus(); }else if(mode==='bluetooth'){ bluetoothStatusDiv.style.display='block'; window.defaultTimerEnabled=false; bluetoothStatusDiv.textContent='🔍 Demo mode: press spacebar to simulate'; } } switchTimerMode(timerMode); timerModeSelect.addEventListener('change',e=>switchTimerMode(e.target.value));
+typingInput.addEventListener('keypress',e=>{ if(e.key==='Enter'){ const val=typingInput.value.trim(); if(val){ let secs=parseFloat(val); if(isNaN(secs)) return; const ms=Math.floor(secs*1000); if(ms>0){ addTime({baseTime:ms,status:'ok',event:eventSel.value,scramble:currentScrambleText}); generateScramble(); timerDisplay.textContent=formatTime(ms); timerDisplay.classList.add('new-best-animation'); setTimeout(()=>timerDisplay.classList.remove('new-best-animation'),2500); typingInput.value=''; } } typingInput.focus(); } });
+const manualModalDiv=document.getElementById('manual-modal'); const manualInput=document.getElementById('manual-input'),manualPreview=document.getElementById('manual-preview'); function digitsToMs(d){ if(!d) return 0; const pad=d.padStart(3,'0'); const cs=parseInt(pad.slice(-2),10),sec=parseInt(pad.slice(-4,-2)||'0',10),min=parseInt(pad.slice(0,-4)||'0',10); return (min*60+sec)*1000+cs*10; } manualInput.addEventListener('input',()=>{ manualInput.value=manualInput.value.replace(/\D/g,''); const ms=digitsToMs(manualInput.value); if(ms) manualPreview.textContent=formatTime(ms); else manualPreview.textContent='—'; }); document.getElementById('open-manual-btn').addEventListener('click',()=>{ settingsModalDiv.classList.remove('open'); manualModalDiv.classList.add('open'); setTimeout(()=>manualInput.focus(),100); }); document.getElementById('manual-cancel-btn').addEventListener('click',()=>manualModalDiv.classList.remove('open')); document.getElementById('manual-confirm-btn').addEventListener('click',()=>{ const digits=manualInput.value; if(digits){ const ms=digitsToMs(digits); if(ms>0){ addTime({baseTime:ms,status:'ok',event:eventSel.value,scramble:currentScrambleText}); manualModalDiv.classList.remove('open'); generateScramble(); } } });
+eventSel.addEventListener('change',()=>{ localStorage.setItem('wcaTimerEvent',eventSel.value); cancelSolve(); renderHistory(); updateStats(); generateScramble(); });
+document.getElementById('close-modal').addEventListener('click',()=>{ const m=document.getElementById('info-modal'); m.classList.add('opacity-0','pointer-events-none'); localStorage.setItem('cubeTimerVisited','true'); });
+loadTimes(); renderHistory(); updateStats(); generateScramble(); if(!localStorage.getItem('cubeTimerVisited')) setTimeout(()=>{ const m=document.getElementById('info-modal'); m.classList.remove('opacity-0','pointer-events-none'); },1000);
+setTimeout(()=>document.getElementById('contact-me-box').classList.add('visible'),3000);
 </script>
 </body>
 </html>
