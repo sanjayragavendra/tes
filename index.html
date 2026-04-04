@@ -118,7 +118,7 @@
             border: 1px solid rgba(103,232,249,.25);
             border-radius: 1.25rem;
             padding: 2rem;
-            width: 100%; max-width: 420px;
+            width: 100%; max-width: 460px;
             box-shadow: 0 0 40px rgba(103,232,249,.15);
             transform: scale(.94);
             transition: transform .3s;
@@ -212,7 +212,7 @@
         .settings-row:last-child { border-bottom: none; }
         .settings-label { font-size: .9rem; color: #d1d5db; }
         .settings-desc  { font-size: .72rem; color: rgba(255,255,255,.35); margin-top:.15rem; }
-        .mode-select {
+        .mode-select, .display-mode-select {
             background: rgba(31,41,55,.7);
             color: #d1d5db;
             border: 1px solid rgba(103,232,249,.4);
@@ -222,6 +222,7 @@
             cursor: pointer;
             outline: none;
         }
+        .mode-select:hover, .display-mode-select:hover { border-color: rgba(103,232,249,.8); }
         /* Solve Details Modal */
         #solve-detail-modal {
             position: fixed; inset: 0;
@@ -275,6 +276,7 @@
 <div id="settings-modal"><div class="modal-box"><h2 class="text-xl font-bold text-cyan-300 mb-5 text-center" style="font-family:'Orbitron',sans-serif;">⚙ Settings</h2>
     <div class="settings-row"><div><div class="settings-label">Inspection Time</div><div class="settings-desc">15-second WCA inspection before solve</div></div><div id="toggle-inspection" class="toggle-track on"><div class="toggle-knob"></div></div></div>
     <div class="settings-row"><div><div class="settings-label">Timer Mode</div><div class="settings-desc">How to record times</div></div><select id="timer-mode-select" class="mode-select"><option value="default">Default (Spacebar/Tap)</option><option value="typing">Typing (Manual Input)</option><option value="bluetooth">Bluetooth (GAN Timer)</option></select></div>
+    <div class="settings-row"><div><div class="settings-label">Live Display Format</div><div class="settings-desc">Show milliseconds, seconds only, or hide during solve</div></div><select id="display-mode-select" class="display-mode-select"><option value="full">Milliseconds (1.23)</option><option value="seconds">Seconds only (1s / 12s)</option><option value="hidden">Hidden (•••)</option></select></div>
     <div class="settings-row" style="padding-top:1rem;"><div><div class="settings-label">Manual Time Entry</div><div class="settings-desc">Add a time without running the timer</div></div><button id="open-manual-btn" class="text-xs font-bold py-2 px-4 rounded-lg" style="background:rgba(103,232,249,.15);border:1px solid rgba(103,232,249,.4);color:#67E8F9;cursor:pointer;">Enter Time</button></div>
     <button id="close-settings-btn" class="w-full mt-6 py-2 rounded-lg font-bold text-sm" style="background:rgba(103,232,249,.18);border:1px solid rgba(103,232,249,.35);color:#67E8F9;">Close</button>
 </div></div>
@@ -284,7 +286,7 @@
     <div class="flex gap-3 mt-6"><button id="manual-cancel-btn" class="flex-1 py-2 rounded-lg font-bold text-sm" style="background:rgba(255,255,255,.07);">Cancel</button><button id="manual-confirm-btn" class="flex-1 py-2 rounded-lg font-bold text-sm" style="background:rgba(52,211,153,.2);border:1px solid rgba(52,211,153,.5);color:#34D399;">Add Time ✓</button></div>
 </div></div>
 
-<!-- SOLVE DETAIL MODAL (SCRATCHPAD) -->
+<!-- SOLVE DETAIL MODAL -->
 <div id="solve-detail-modal">
     <div class="detail-box">
         <h3 class="text-xl font-bold text-cyan-300 mb-3 text-center" style="font-family:'Orbitron',sans-serif;">📋 Solve Details</h3>
@@ -339,117 +341,62 @@
 import { randomScrambleForEvent } from 'cubing/scramble';
 import 'cubing/twisty';
 
-// --- THREE.JS BACKGROUND WITH MOUSE REACTION (FIXED) ---
+// --- THREE.JS BACKGROUND WITH MOUSE REACTION ---
 (function() {
     let scene, camera, renderer, particles, velocities;
     const mouse = new THREE.Vector2(10, 10);
-    
     function init() {
         scene = new THREE.Scene();
         camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('bg-canvas'), alpha: true });
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setSize(window.innerWidth, window.innerHeight);
-        
         const N = 5000;
         const positions = new Float32Array(N * 3);
         const velocitiesArray = new Float32Array(N * 3);
         const colors = new Float32Array(N * 3);
         velocities = velocitiesArray;
-        
         for (let i = 0; i < N; i++) {
             const i3 = i * 3;
             positions[i3] = (Math.random() - 0.5) * 12;
             positions[i3+1] = (Math.random() - 0.5) * 12;
             positions[i3+2] = (Math.random() - 0.5) * 12;
             const color = new THREE.Color().setHSL(Math.random(), 0.8, 0.6);
-            colors[i3] = color.r;
-            colors[i3+1] = color.g;
-            colors[i3+2] = color.b;
+            colors[i3] = color.r; colors[i3+1] = color.g; colors[i3+2] = color.b;
         }
-        
         const geometry = new THREE.BufferGeometry();
         geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-        
-        particles = new THREE.Points(geometry, new THREE.PointsMaterial({
-            size: 0.025,
-            vertexColors: true,
-            blending: THREE.AdditiveBlending,
-            transparent: true,
-            opacity: 0.9
-        }));
+        particles = new THREE.Points(geometry, new THREE.PointsMaterial({ size: 0.025, vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, opacity: 0.9 }));
         scene.add(particles);
         camera.position.z = 5;
-        
-        // Mouse move listener for particle interaction
-        window.addEventListener('mousemove', (e) => {
-            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-        });
-        
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-        
+        window.addEventListener('mousemove', (e) => { mouse.x = (e.clientX / window.innerWidth) * 2 - 1; mouse.y = -(e.clientY / window.innerHeight) * 2 + 1; });
+        window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
         animate();
     }
-    
     function animate() {
         requestAnimationFrame(animate);
-        
         const time = performance.now() * 0.0001;
         const positions = particles.geometry.attributes.position.array;
-        
-        // Get mouse position in 3D space
         const mouseVector = new THREE.Vector3(mouse.x, mouse.y, 0.5);
         mouseVector.unproject(camera);
         const direction = mouseVector.sub(camera.position).normalize();
         const mousePos3D = camera.position.clone().add(direction.multiplyScalar(-camera.position.z / direction.z));
-        
         for (let i = 0; i < positions.length / 3; i++) {
-            const i3 = i * 3;
-            const x = positions[i3];
-            const y = positions[i3+1];
-            
-            // Organic flow
+            const i3 = i * 3, x = positions[i3], y = positions[i3+1];
             velocities[i3] += Math.cos(y * 0.4 + time) * 0.00004;
             velocities[i3+1] += Math.sin(x * 0.4 + time) * 0.00004;
-            
-            // Mouse attraction/repulsion
-            const dx = x - mousePos3D.x;
-            const dy = y - mousePos3D.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            if (distance < 1.5) {
-                const force = (1.5 - distance) / 1.5;
-                velocities[i3] += (dx / distance) * force * 0.02;
-                velocities[i3+1] += (dy / distance) * force * 0.02;
-            }
-            
-            // Damping
-            velocities[i3] *= 0.97;
-            velocities[i3+1] *= 0.97;
-            
-            // Update positions
-            positions[i3] += velocities[i3];
-            positions[i3+1] += velocities[i3+1];
-            
-            // Boundary bounce
+            const dx = x - mousePos3D.x, dy = y - mousePos3D.y, d = Math.sqrt(dx*dx + dy*dy);
+            if (d < 1.5) { const f = (1.5-d)/1.5; velocities[i3] += (dx/d)*f*0.02; velocities[i3+1] += (dy/d)*f*0.02; }
+            velocities[i3] *= 0.97; velocities[i3+1] *= 0.97;
+            positions[i3] += velocities[i3]; positions[i3+1] += velocities[i3+1];
             if (positions[i3] > 6 || positions[i3] < -6) velocities[i3] *= -0.9;
             if (positions[i3+1] > 6 || positions[i3+1] < -6) velocities[i3+1] *= -0.9;
         }
-        
         particles.geometry.attributes.position.needsUpdate = true;
         renderer.render(scene, camera);
     }
-    
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-    } else {
-        init();
-    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
 
 // --- Constants & helpers ---
@@ -461,38 +408,56 @@ const scrambleEl=document.getElementById('scramble'),vizCon=document.getElementB
 Object.entries(WCA_EVENTS).forEach(([id,name])=>{ const o=document.createElement('option'); o.value=id; o.textContent=name; eventSel.appendChild(o); });
 eventSel.value=localStorage.getItem('wcaTimerEvent')||'333';
 
+// --- Live Display Format Setting ---
+let displayFormat = localStorage.getItem('timerDisplayFormat') || 'full'; // 'full', 'seconds', 'hidden'
+const displayModeSelect = document.getElementById('display-mode-select');
+displayModeSelect.value = displayFormat;
+function formatLiveTime(ms) {
+    if (displayFormat === 'hidden') return '•••';
+    const totalSec = ms / 1000;
+    if (displayFormat === 'seconds') return Math.floor(totalSec) + 's';
+    // full milliseconds
+    const m = Math.floor(ms / 60000);
+    const s = Math.floor((ms % 60000) / 1000);
+    const c = Math.floor((ms % 1000) / 10);
+    return (m > 0 ? `${m}:${String(s).padStart(2,'0')}` : `${s}`) + '.' + String(c).padStart(2,'0');
+}
+displayModeSelect.addEventListener('change', (e) => {
+    displayFormat = e.target.value;
+    localStorage.setItem('timerDisplayFormat', displayFormat);
+    if (timerState === 'timing') {
+        // Refresh current display without breaking timer
+        const elapsed = Date.now() - startTime;
+        timerDisplay.textContent = formatLiveTime(elapsed);
+    }
+});
+
 async function renderVisualization(){ if(!currentScrambleText) return; vizCon.classList.remove('show'); vizCon.innerHTML=''; if(currentTwistyPlayer) currentTwistyPlayer.remove(); const player=document.createElement('twisty-player'); player.setAttribute('alg',currentScrambleText); player.setAttribute('puzzle',getPuzzleType(currentEventCode)); player.setAttribute('visualization','3D'); player.setAttribute('background','none'); player.style.width='100%'; player.style.maxWidth='400px'; player.style.minHeight='280px'; vizCon.appendChild(player); currentTwistyPlayer=player; setTimeout(()=>vizCon.classList.add('show'),50); }
 async function generateScramble(){ const ev=eventSel.value; currentEventCode=ev; try{ const alg=await randomScrambleForEvent(ev); currentScrambleText=alg.toString(); scrambleEl.textContent=currentScrambleText; await renderVisualization(); }catch(e){ scrambleEl.textContent='Error generating scramble'; } }
 
-// --- extended times: store scramble string ---
 function saveTimes(){ localStorage.setItem('wcaTimerHistory',JSON.stringify(times)); }
 function loadTimes(){ times=JSON.parse(localStorage.getItem('wcaTimerHistory')||'[]'); }
 function addTime(t){ times.push({...t, scramble: t.scramble || currentScrambleText, timestamp:Date.now()}); saveTimes(); renderHistory(); updateStats(); }
 
 function formatTime(ms,status='ok'){ if(status==='dnf') return 'DNF'; const total=ms+(status==='+2'?2000:0); const m=Math.floor(total/60000),s=Math.floor((total%60000)/1000),c=Math.floor((total%1000)/10); return (m>0?`${m}:${String(s).padStart(2,'0')}`:`${s}`)+'.'+String(c).padStart(2,'0')+(status==='+2'?'+':''); }
 
-// History render with clickable rows
 function renderHistory(){ histBody.innerHTML=''; const ev=eventSel.value; const evTimes=times.filter(t=>t.event===ev); evTimes.slice().reverse().forEach((t,idx)=>{ const oi=times.findIndex(x=>x===t); const row=document.createElement('tr'); row.classList.add('hover:bg-white/5','cursor-pointer','transition'); row.dataset.index=oi; row.innerHTML=`<td class="p-2">${evTimes.length-idx}</td><td class="p-2 ${t.status==='dnf'?'status-dnf':t.status==='+2'?'status-plus2':''}">${formatTime(t.baseTime,t.status)}</td><td class="p-2"><div class="flex justify-center items-center gap-2"><button data-a="plus2" data-i="${oi}" class="font-bold text-yellow-400 w-9 text-xs py-1 rounded bg-gray-700/50 hover:bg-gray-700">+2</button><button data-a="dnf" data-i="${oi}" class="font-bold text-red-400 w-9 text-xs py-1 rounded bg-gray-700/50 hover:bg-gray-700">DNF</button><button data-a="del" data-i="${oi}" class="font-bold text-gray-400 text-xs py-1 px-2 rounded bg-gray-700/50 hover:bg-gray-700">Del</button></div></td>`; histBody.appendChild(row); }); }
-// open detail modal
 const detailModal=document.getElementById('solve-detail-modal');
 const detailTimeSpan=document.getElementById('detail-time'),detailEventSpan=document.getElementById('detail-event'),detailScrambleDiv=document.getElementById('detail-scramble-text');
 let currentSelectedSolve=null;
-function openSolveDetail(solveIndex){ const solve=times[solveIndex]; if(!solve) return; currentSelectedSolve=solveIndex; detailTimeSpan.textContent=formatTime(solve.baseTime,solve.status); detailEventSpan.textContent=WCA_EVENTS[solve.event]||solve.event; const scrambleDisplay=solve.scramble || '(scramble not saved for old solves)'; detailScrambleDiv.textContent=scrambleDisplay; detailModal.classList.add('open'); }
+function openSolveDetail(solveIndex){ const solve=times[solveIndex]; if(!solve) return; currentSelectedSolve=solveIndex; detailTimeSpan.textContent=formatTime(solve.baseTime,solve.status); detailEventSpan.textContent=WCA_EVENTS[solve.event]||solve.event; detailScrambleDiv.textContent=solve.scramble || '(scramble not saved)'; detailModal.classList.add('open'); }
 document.getElementById('close-detail-btn').addEventListener('click',()=>detailModal.classList.remove('open'));
 detailModal.addEventListener('click',(e)=>{ if(e.target===detailModal) detailModal.classList.remove('open'); });
-// Redo solve: set scramble, event, and optionally reset timer state
 document.getElementById('redo-solve-btn').addEventListener('click',async()=>{ if(currentSelectedSolve===null) return; const original=times[currentSelectedSolve]; if(!original) return; detailModal.classList.remove('open'); eventSel.value=original.event; localStorage.setItem('wcaTimerEvent',original.event); currentEventCode=original.event; if(original.scramble && original.scramble.trim()){ currentScrambleText=original.scramble; scrambleEl.textContent=currentScrambleText; await renderVisualization(); }else{ await generateScramble(); } if(timerState==='timing'){ clearInterval(timerInterval); } if(inspectionTimer) clearInterval(inspectionTimer); clearTimeout(holdTimeout); timerState='idle'; document.body.classList.remove('focus-mode'); setTimerClass(''); timerDisplay.textContent='0.00'; timerDisplay.classList.add('new-best-animation'); setTimeout(()=>timerDisplay.classList.remove('new-best-animation'),800); });
-// attach row click events (delegation)
 const histBody=document.getElementById('history-body');
 histBody.addEventListener('click',(e)=>{ const btn=e.target.closest('button'); if(btn){ const a=btn.dataset.a,i=parseInt(btn.dataset.i); if(!isNaN(i)&&times[i]){ if(a==='del'){ const n=parseInt(prompt('How many?','1')||'0'); if(n&&n>0){ let c=0; for(let j=i;j<times.length&&c<n;j++) if(times[j].event===times[i].event){ times.splice(j,1); j--; c++; } saveTimes(); renderHistory(); updateStats(); if(timerState!=='timing') timerDisplay.textContent='0.00'; } }else if(a==='plus2'){ if(times[i].status!=='dnf') times[i].status=times[i].status==='+2'?'ok':'+2'; saveTimes(); renderHistory(); updateStats(); }else if(a==='dnf'){ times[i].status=times[i].status==='dnf'?'ok':'dnf'; saveTimes(); renderHistory(); updateStats(); } } return; } const row=e.target.closest('tr'); if(row&&row.dataset.index){ const idx=parseInt(row.dataset.index); if(!isNaN(idx)&&times[idx]) openSolveDetail(idx); } });
-// stats & timer logic
 function calcAo(n){ const ev=times.filter(t=>t.event===eventSel.value); if(ev.length<n) return null; const last=ev.slice(-n); if(last.some(t=>t.status==='dnf')) return 'DNF'; const sorted=last.map(t=>t.baseTime+(t.status==='+2'?2000:0)).sort((a,b)=>a-b); return sorted.slice(1,-1).reduce((a,b)=>a+b,0)/(n-2); }
 function updateStats(){ const ev=times.filter(t=>t.event===eventSel.value); if(!ev.length){ ['ao5','ao12','best','worst'].forEach(id=>document.getElementById(id).textContent='N/A'); return; } const a5=calcAo(5),a12=calcAo(12); document.getElementById('ao5').textContent=a5==='DNF'?'DNF':a5?formatTime(a5):'N/A'; document.getElementById('ao12').textContent=a12==='DNF'?'DNF':a12?formatTime(a12):'N/A'; const valid=ev.filter(t=>t.status!=='dnf'); if(valid.length){ const b=valid.reduce((p,c)=>(p.baseTime+(p.status==='+2'?2000:0))<(c.baseTime+(c.status==='+2'?2000:0))?p:c); document.getElementById('best').textContent=formatTime(b.baseTime,b.status); const w=valid.reduce((p,c)=>(p.baseTime+(p.status==='+2'?2000:0))>(c.baseTime+(c.status==='+2'?2000:0))?p:c); document.getElementById('worst').textContent=formatTime(w.baseTime,w.status); } else document.getElementById('worst').textContent='DNF'; }
 function setTimerClass(cls){ timerDisplay.className='timer-display font-black tracking-tighter'+(cls?' '+cls:''); }
 const timerDisplay=document.getElementById('timer');
 window.defaultTimerEnabled=true; let settings={inspectionEnabled:JSON.parse(localStorage.getItem('wcaSettingInspection')??'true')};
 function startInspection(){ if(!settings.inspectionEnabled){ timerState='arming'; setTimerClass('timer-running'); holdTimeout=setTimeout(()=>{ timerState='ready'; setTimerClass('timer-ready'); },550); return; } timerState='inspecting'; inspectionPenalty=0; let sec=0; timerDisplay.textContent=15; setTimerClass('timer-inspecting'); inspectionTimer=setInterval(()=>{ sec++; if(!inspectionTimer) return; if(sec<=15){ timerDisplay.textContent=15-sec; timerDisplay.classList.add('inspection-tick'); setTimeout(()=>timerDisplay.classList.remove('inspection-tick'),500); } if(sec===15){ inspectionPenalty=2000; setTimerClass('timer-penalty'); } else if(sec===17){ inspectionPenalty='dnf'; stopTimer(true); } },1000); }
-function startTimer(){ document.body.classList.add('focus-mode'); startTime=Date.now(); timerState='timing'; setTimerClass('timer-running'); timerInterval=setInterval(()=>{ const e=Date.now()-startTime; const m=Math.floor(e/60000),s=Math.floor((e%60000)/1000); timerDisplay.textContent=m>0?`${m}:${String(s).padStart(2,'0')}`:s; },100); }
+function startTimer(){ document.body.classList.add('focus-mode'); startTime=Date.now(); timerState='timing'; setTimerClass('timer-running'); timerInterval=setInterval(()=>{ const elapsed=Date.now()-startTime; timerDisplay.textContent=formatLiveTime(elapsed); }, 50); }
 function stopTimer(isDNF=false){ clearInterval(timerInterval); clearInterval(inspectionTimer); inspectionTimer=null; const final=isDNF?Infinity:Date.now()-startTime; const status=(isDNF||inspectionPenalty==='dnf')?'dnf':inspectionPenalty===2000?'+2':'ok'; timerState='stopped'; setTimerClass(''); timerDisplay.textContent=formatTime(final,status); document.body.classList.remove('focus-mode'); addTime({ baseTime:final, status, event:eventSel.value }); generateScramble(); const num=status==='dnf'?Infinity:final+(status==='+2'?2000:0); if(num!==Infinity){ const ev=times.filter(t=>t.event===eventSel.value); const best=Math.min(...ev.filter(t=>t.status!=='dnf').map(t=>t.baseTime+(t.status==='+2'?2000:0)),Infinity); if(num<best){ timerDisplay.classList.add('new-best-animation'); setTimeout(()=>timerDisplay.classList.remove('new-best-animation'),2500); } } }
 function cancelSolve(){ clearTimeout(holdTimeout); clearInterval(inspectionTimer); timerState='stopped'; setTimerClass(''); timerDisplay.textContent='0.00'; document.body.classList.remove('focus-mode'); }
 function anyModalOpen(){ return document.getElementById('settings-modal').classList.contains('open')||document.getElementById('manual-modal').classList.contains('open')||detailModal.classList.contains('open')||!document.getElementById('info-modal').classList.contains('pointer-events-none'); }
@@ -500,7 +465,6 @@ window.addEventListener('keydown',e=>{ if(anyModalOpen()) return; if(timerMode!=
 window.addEventListener('keyup',e=>{ if(anyModalOpen()) return; if(timerMode!=='default'||!window.defaultTimerEnabled) return; if(e.code==='Space'){ e.preventDefault(); clearTimeout(holdTimeout); if(timerState==='ready'){ clearInterval(inspectionTimer); startTimer(); }else if(timerState==='arming'){ if(!settings.inspectionEnabled){ timerState='stopped'; setTimerClass(''); timerDisplay.textContent='0.00'; }else{ timerState='inspecting'; setTimerClass(inspectionPenalty>0?'timer-penalty':'timer-inspecting'); } } } });
 const timerCon=document.getElementById('timer-container'); timerCon.addEventListener('touchstart',e=>{ if(anyModalOpen()) return; if(timerMode!=='default'||!window.defaultTimerEnabled) return; if(e.touches.length>1) return; e.preventDefault(); if(timerState==='timing'){ stopTimer(); return; } if(timerState==='idle'||timerState==='stopped') startInspection(); else if(timerState==='inspecting'){ timerState='arming'; setTimerClass('timer-running'); holdTimeout=setTimeout(()=>{ timerState='ready'; setTimerClass('timer-ready'); },550); } },{passive:false});
 timerCon.addEventListener('touchend',e=>{ if(anyModalOpen()) return; if(timerMode!=='default'||!window.defaultTimerEnabled) return; e.preventDefault(); clearTimeout(holdTimeout); if(timerState==='ready'){ clearInterval(inspectionTimer); startTimer(); }else if(timerState==='arming'){ if(!settings.inspectionEnabled){ timerState='stopped'; setTimerClass(''); timerDisplay.textContent='0.00'; }else{ timerState='inspecting'; setTimerClass(inspectionPenalty>0?'timer-penalty':'timer-inspecting'); } } },{passive:false});
-// import/export & settings wiring
 document.getElementById('export-csv-btn').addEventListener('click',()=>{ if(!times.length) return; const csv=['event,baseTime,status,scramble']; times.forEach(t=>csv.push([t.event,t.baseTime,t.status,t.scramble||''].join(','))); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv.join('\n')],{type:'text/csv'})); a.download=`hoodieboy-${new Date().toISOString().slice(0,10)}.csv`; a.click(); });
 document.getElementById('export-txt-btn').addEventListener('click',()=>{ if(!times.length) return; const data=JSON.stringify(times,null,2); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([data],{type:'text/plain'})); a.download=`hoodieboy-solves-${Date.now()}.txt`; a.click(); });
 document.getElementById('import-btn').addEventListener('click',()=>document.getElementById('import-file-input').click());
