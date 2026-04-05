@@ -20,7 +20,6 @@
         #bg-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; }
         .panel { background: rgba(17,24,39,0.75); border: 1px solid rgba(255,255,255,0.1); border-radius: 1rem; backdrop-filter: blur(4px); }
 
-        /* Timer states - neon blue theme */
         .timer-inspecting { color: #EF4444 !important; text-shadow: 0 0 20px #EF4444, 0 0 40px #DC2626 !important; animation: pulseRed 0.8s ease-in-out infinite alternate; }
         .timer-ready      { color: #34D399; text-shadow: 0 0 15px #34D399; }
         .timer-running    { color: #06b6d4 !important; text-shadow: 0 0 20px #06b6d4, 0 0 30px #0891b2 !important; }
@@ -32,7 +31,6 @@
             100% { text-shadow: 0 0 35px #EF4444, 0 0 60px #B91C1C; opacity: 1; transform: scale(1.02);}
         }
 
-        /* Clean fullscreen overlay */
         .fullscreen-overlay {
             position: fixed;
             top: 0;
@@ -100,7 +98,6 @@
         #puzzle-visualization.show { opacity: 1; }
         twisty-player { width: 100%; max-width: 400px; height: auto; min-height: 280px; --background: transparent; }
 
-        /* Modals */
         #settings-modal, #manual-modal, #solve-detail-modal {
             position: fixed; inset: 0; background: rgba(0,0,0,.85);
             display: flex; align-items: center; justify-content: center;
@@ -124,7 +121,6 @@
         .toggle-knob { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; background: white; border-radius: 50%; transition: left .25s; }
         .toggle-track.on .toggle-knob { left: 22px; }
         
-        /* Original settings button style */
         #settings-btn {
             position: fixed; top: 1rem; right: 1rem;
             z-index: 150;
@@ -144,7 +140,6 @@
         .redo-btn { background: linear-gradient(135deg, rgba(6,182,212,.2), rgba(52,211,153,.1)); border: 1px solid #06b6d4; transition: all .2s; }
         .redo-btn:hover { background: rgba(6,182,212,.35); box-shadow: 0 0 12px #06b6d4; }
         
-        /* Contact box restored */
         #contact-me-box {
             position: fixed;
             bottom: 1rem;
@@ -171,7 +166,6 @@
         .hover\:bg-cyan-700:hover { background-color: #0e7490 !important; }
         .border-cyan-400 { border-color: #06b6d4 !important; }
         
-        /* Mobile scroll improvements */
         @media (max-width: 768px) {
             .panel { margin-bottom: 0.5rem; }
             #history-scroll-container { max-height: 40vh; }
@@ -182,15 +176,13 @@
 <body>
 <canvas id="bg-canvas"></canvas>
 
-<!-- Original settings button (gear icon restored) -->
 <button id="settings-btn" title="Settings">
     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="rgba(103,232,249,0.85)" viewBox="0 0 16 16">
         <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z"/>
-        <path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319zm-2.633.283c.246-.835 1.428-.835 1.674 0l.094.319a1.873 1.873 0 0 0 2.693 1.115l.291-.16c.764-.415 1.6.42 1.184 1.185l-.159.292a1.873 1.873 0 0 0 1.116 2.692l.318.094c.835.246.835 1.428 0 1.674l-.319.094a1.873 1.873 0 0 0-1.115 2.693l.16.291c.415.764-.42 1.6-1.185 1.184l-.291-.159a1.873 1.873 0 0 0-2.693 1.116l-.094.318c-.246.835-1.428.835-1.674 0l-.094-.319a1.873 1.873 0 0 0-2.692-1.115l-.292.16c-.764.415-1.6-.42-1.184-1.185l.159-.291A1.873 1.873 0 0 0 1.945 8.93l-.319-.094c-.835-.246-.835-1.428 0-1.674l.319-.094A1.873 1.873 0 0 0 3.06 4.377l-.16-.292c-.415-.764.42-1.6 1.185-1.184l.292.159a1.873 1.873 0 0 0 2.692-1.115l.094-.319z"/>
+        <path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319z"/>
     </svg>
 </button>
 
-<!-- Fullscreen overlay -->
 <div id="fullscreen-overlay" class="fullscreen-overlay">
     <div id="fs-timer" class="fullscreen-timer">0.00</div>
 </div>
@@ -216,7 +208,6 @@
     <div class="flex gap-3"><button id="close-detail-btn" class="flex-1 py-2 rounded-lg font-bold text-sm" style="background:rgba(255,255,255,.07);color:#9ca3af;">Close</button><button id="redo-solve-btn" class="flex-1 py-2 rounded-lg redo-btn text-cyan-200 font-bold flex items-center justify-center gap-1">⟳ Redo this solve</button></div>
 </div></div>
 
-<!-- Main UI - Scrollable on mobile -->
 <div id="main-ui" class="relative w-full min-h-screen flex flex-col md:flex-row p-2 sm:p-4 gap-4 z-10 pb-24">
     <div id="left-column" class="w-full md:w-1/2 lg:w-1/3 flex flex-col gap-4">
         <div id="scramble-panel" class="panel p-4 shadow-lg">
@@ -249,7 +240,6 @@
     </div>
 </div>
 
-<!-- Contact Box - Restored with Instagram and Email -->
 <div id="contact-me-box" class="fixed bottom-4 left-1/2 transform -translate-x-1/2 transition-all duration-300 z-20">
     <div class="panel p-3">
         <div class="flex items-center gap-4">
@@ -273,7 +263,7 @@
 import { randomScrambleForEvent } from 'cubing/scramble';
 import 'cubing/twisty';
 
-// ========== THREE.JS BACKGROUND WITH SQUARE PARTICLES (Restored) ==========
+// ========== THREE.JS BACKGROUND WITH SQUARE PARTICLES ==========
 (function() {
     let scene, camera, renderer, particles, velocities;
     const mouse = new THREE.Vector2(0,0);
@@ -303,7 +293,6 @@ import 'cubing/twisty';
         geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
         
-        // Square particles using PointsMaterial with square texture
         const canvas = document.createElement('canvas');
         canvas.width = 8;
         canvas.height = 8;
@@ -361,13 +350,14 @@ const eventSel = document.getElementById('event-selector');
 Object.keys(WCA_EVENTS).forEach(id=>{ let o=document.createElement('option'); o.value=id; o.textContent=WCA_EVENTS[id]; eventSel.appendChild(o); });
 eventSel.value = localStorage.getItem('wcaTimerEvent')||'333';
 
-async function renderVisualization() {
+async function renderVisualization(scrambleOverride = null) {
     const vizDiv = document.getElementById('puzzle-visualization');
-    if(!currentScrambleText) return;
+    const scrambleToUse = scrambleOverride || currentScrambleText;
+    if(!scrambleToUse) return;
     vizDiv.classList.remove('show');
     vizDiv.innerHTML = '';
     const player = document.createElement('twisty-player');
-    player.setAttribute('alg', currentScrambleText);
+    player.setAttribute('alg', scrambleToUse);
     player.setAttribute('puzzle', getPuzzleType(currentEventCode));
     player.setAttribute('visualization', '3D');
     player.setAttribute('background', 'none');
@@ -377,6 +367,7 @@ async function renderVisualization() {
     vizDiv.appendChild(player);
     setTimeout(() => vizDiv.classList.add('show'), 50);
 }
+
 async function generateScramble(){ 
     const ev=eventSel.value; currentEventCode=ev; 
     try{ const alg=await randomScrambleForEvent(ev); currentScrambleText=alg.toString(); 
@@ -450,7 +441,7 @@ function cancelSolve() {
 }
 
 // ========== DATA MANAGEMENT ==========
-function addTime(t){ times.push({...t, scramble: t.scramble || currentScrambleText}); localStorage.setItem('wcaTimerHistory',JSON.stringify(times)); renderHistory(); updateStats(); }
+function addTime(t){ times.push({...t, scramble: t.scramble || currentScrambleText, timestamp:Date.now()}); localStorage.setItem('wcaTimerHistory',JSON.stringify(times)); renderHistory(); updateStats(); }
 function renderHistory(){ const tbody=document.getElementById('history-body'); tbody.innerHTML=''; const ev=eventSel.value; const evTimes=times.filter(t=>t.event===ev); evTimes.slice().reverse().forEach((t,idx)=>{ const oi=times.findIndex(x=>x===t); const row=tbody.insertRow(); row.className='cursor-pointer hover:bg-white/5'; row.dataset.index=oi; row.innerHTML=`<td class="p-2">${evTimes.length-idx}</td><td class="p-2 ${t.status==='dnf'?'status-dnf':t.status==='+2'?'status-plus2':''}">${formatStatic(t.baseTime,t.status)}</td><td class="p-2"><div class="flex justify-center gap-2"><button data-a="plus2" data-i="${oi}" class="font-bold text-yellow-400 text-xs py-1 px-2 rounded bg-gray-700/50 hover:bg-gray-700">+2</button><button data-a="dnf" data-i="${oi}" class="font-bold text-red-400 text-xs py-1 px-2 rounded bg-gray-700/50 hover:bg-gray-700">DNF</button><button data-a="del" data-i="${oi}" class="font-bold text-gray-400 text-xs py-1 px-2 rounded bg-gray-700/50 hover:bg-gray-700">Del</button></div></td>`; }); }
 function updateStats(){ const ev=times.filter(t=>t.event===eventSel.value); if(!ev.length){ document.getElementById('ao5').textContent='N/A'; document.getElementById('ao12').textContent='N/A'; return; } const calcAo=(n)=>{ if(ev.length<n) return null; const last=ev.slice(-n); if(last.some(t=>t.status==='dnf')) return 'DNF'; const sorted=last.map(t=>t.baseTime+(t.status==='+2'?2000:0)).sort((a,b)=>a-b); return sorted.slice(1,-1).reduce((a,b)=>a+b,0)/(n-2); }; const a5=calcAo(5), a12=calcAo(12); document.getElementById('ao5').textContent=a5==='DNF'?'DNF':a5?formatStatic(a5):'N/A'; document.getElementById('ao12').textContent=a12==='DNF'?'DNF':a12?formatStatic(a12):'N/A'; const valid=ev.filter(t=>t.status!=='dnf'); if(valid.length){ const best=valid.reduce((p,c)=>p.baseTime+(p.status==='+2'?2000:0) < c.baseTime+(c.status==='+2'?2000:0) ? p : c); const worst=valid.reduce((p,c)=>p.baseTime+(p.status==='+2'?2000:0) > c.baseTime+(c.status==='+2'?2000:0) ? p : c); document.getElementById('best').textContent=formatStatic(best.baseTime,best.status); document.getElementById('worst').textContent=formatStatic(worst.baseTime,worst.status); } }
 function loadTimes(){ const stored=localStorage.getItem('wcaTimerHistory'); if(stored) times=JSON.parse(stored); else times=[]; }
@@ -475,7 +466,6 @@ window.addEventListener('keyup', e=>{ if(anyModalOpen() || timerMode!=='default'
 document.getElementById('timer-container').addEventListener('touchstart', e=>{ if(anyModalOpen()||timerMode!=='default') return; e.preventDefault(); if(timerState==='timing') stopTimer(); else if(timerState==='idle'||timerState==='stopped') startInspection(); else if(timerState==='inspecting'){ timerState='arming'; holdTimeout=setTimeout(()=>{ timerState='ready'; },550); } },{passive:false});
 document.getElementById('timer-container').addEventListener('touchend', e=>{ if(anyModalOpen()||timerMode!=='default') return; e.preventDefault(); clearTimeout(holdTimeout); if(timerState==='ready'){ clearInterval(inspectionTimer); startTimer(); } else if(timerState==='arming'){ if(!settings.inspectionEnabled){ timerState='stopped'; exitFullscreen(); } else { timerState='inspecting'; } } },{passive:false});
 
-// Settings UI wiring
 document.getElementById('toggle-inspection').addEventListener('click',()=>{ settings.inspectionEnabled=!settings.inspectionEnabled; document.getElementById('toggle-inspection').classList.toggle('on',settings.inspectionEnabled); localStorage.setItem('wcaSettingInspection',JSON.stringify(settings.inspectionEnabled)); });
 document.getElementById('settings-btn').onclick=()=>document.getElementById('settings-modal').classList.add('open');
 document.getElementById('close-settings-btn').onclick=()=>document.getElementById('settings-modal').classList.remove('open');
@@ -483,7 +473,68 @@ document.getElementById('open-manual-btn').onclick=()=>{ document.getElementById
 document.getElementById('manual-cancel-btn').onclick=()=>document.getElementById('manual-modal').classList.remove('open');
 document.getElementById('manual-confirm-btn').onclick=()=>{ let val=document.getElementById('manual-input').value; if(val){ let ms=parseFloat(val)*1000; if(!isNaN(ms)&&ms>0){ addTime({baseTime:ms,status:'ok',event:eventSel.value}); generateScramble(); } } document.getElementById('manual-modal').classList.remove('open'); };
 document.getElementById('close-modal').onclick=()=>{ document.getElementById('info-modal').classList.add('opacity-0','pointer-events-none'); localStorage.setItem('cubeTimerVisited','true'); };
-document.getElementById('history-body').addEventListener('click',(e)=>{ const btn=e.target.closest('button'); if(btn){ const a=btn.dataset.a,i=parseInt(btn.dataset.i); if(!isNaN(i)&&times[i]){ if(a==='del') times.splice(i,1); else if(a==='plus2' && times[i].status!=='dnf') times[i].status=times[i].status==='+2'?'ok':'+2'; else if(a==='dnf') times[i].status=times[i].status==='dnf'?'ok':'dnf'; localStorage.setItem('wcaTimerHistory',JSON.stringify(times)); renderHistory(); updateStats(); } return; } const row=e.target.closest('tr'); if(row&&row.dataset.index){ const idx=parseInt(row.dataset.index); if(times[idx]){ document.getElementById('detail-time').innerText=formatStatic(times[idx].baseTime,times[idx].status); document.getElementById('detail-event').innerText=WCA_EVENTS[times[idx].event]; document.getElementById('detail-scramble-text').innerText=times[idx].scramble||'N/A'; document.getElementById('solve-detail-modal').classList.add('open'); document.getElementById('redo-solve-btn').onclick=()=>{ eventSel.value=times[idx].event; generateScramble(); document.getElementById('solve-detail-modal').classList.remove('open'); cancelSolve(); }; } } });
+
+// History click handler with proper redo functionality
+document.getElementById('history-body').addEventListener('click', async (e)=>{ 
+    const btn=e.target.closest('button'); 
+    if(btn){ 
+        const a=btn.dataset.a, i=parseInt(btn.dataset.i); 
+        if(!isNaN(i)&&times[i]){ 
+            if(a==='del') times.splice(i,1); 
+            else if(a==='plus2' && times[i].status!=='dnf') times[i].status=times[i].status==='+2'?'ok':'+2'; 
+            else if(a==='dnf') times[i].status=times[i].status==='dnf'?'ok':'dnf'; 
+            localStorage.setItem('wcaTimerHistory',JSON.stringify(times)); 
+            renderHistory(); 
+            updateStats(); 
+        } 
+        return; 
+    } 
+    const row=e.target.closest('tr'); 
+    if(row&&row.dataset.index){ 
+        const idx=parseInt(row.dataset.index); 
+        if(times[idx]){ 
+            document.getElementById('detail-time').innerText=formatStatic(times[idx].baseTime,times[idx].status); 
+            document.getElementById('detail-event').innerText=WCA_EVENTS[times[idx].event]||times[idx].event; 
+            const scrambleToShow = times[idx].scramble || '(scramble not saved for this solve)';
+            document.getElementById('detail-scramble-text').innerText=scrambleToShow; 
+            document.getElementById('solve-detail-modal').classList.add('open'); 
+            
+            // Fix redo button - properly restore the scramble
+            const redoBtn = document.getElementById('redo-solve-btn');
+            const newRedoBtn = redoBtn.cloneNode(true);
+            redoBtn.parentNode.replaceChild(newRedoBtn, redoBtn);
+            
+            newRedoBtn.onclick = async () => {
+                const originalSolve = times[idx];
+                if(!originalSolve) return;
+                
+                // Switch to the solve's event
+                eventSel.value = originalSolve.event;
+                currentEventCode = originalSolve.event;
+                localStorage.setItem('wcaTimerEvent', originalSolve.event);
+                
+                // Restore the exact scramble
+                if(originalSolve.scramble && originalSolve.scramble.trim() !== '') {
+                    currentScrambleText = originalSolve.scramble;
+                    document.getElementById('scramble').textContent = currentScrambleText;
+                    await renderVisualization(currentScrambleText);
+                } else {
+                    // Fallback: generate new scramble for that event
+                    await generateScramble();
+                }
+                
+                // Close modal and reset timer
+                document.getElementById('solve-detail-modal').classList.remove('open');
+                cancelSolve();
+                
+                // Visual feedback
+                normalTimer.classList.add('new-best-animation');
+                setTimeout(() => normalTimer.classList.remove('new-best-animation'), 800);
+            };
+        } 
+    } 
+});
+
 document.getElementById('close-detail-btn').onclick=()=>document.getElementById('solve-detail-modal').classList.remove('open');
 eventSel.addEventListener('change',()=>{ localStorage.setItem('wcaTimerEvent',eventSel.value); generateScramble(); renderHistory(); updateStats(); });
 document.getElementById('export-csv-btn').onclick=()=>{ let csv='event,baseTime,status,scramble\n'; times.forEach(t=>csv+=`${t.event},${t.baseTime},${t.status},${t.scramble||''}\n`); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv])); a.download=`hoodieboy-${new Date().toISOString().slice(0,10)}.csv`; a.click(); };
